@@ -1,0 +1,174 @@
+import pandas as pd
+import numpy as np
+from tqdm.auto import tqdm
+from multiprocessing import Pool
+from joblib import Parallel, delayed
+import os
+from scipy.stats import norm
+import bisect
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+def recall_at_n(rank_series: np.ndarray, n: int):
+    # Recall@n: fraction of items whose rank is <= n
+    return np.sum(rank_series <= n) / rank_series.size
+
+
+def MRR(rank_series: np.ndarray):
+    # Standard MRR over all items: mean of 1/rank
+    reciprocal_rank_series = 1.0 / rank_series.astype(float)
+    return np.mean(reciprocal_rank_series)
+
+
+def MRR_at_n(rank_series: np.ndarray, n: int):
+    # Conditional MRR@n: mean reciprocal rank over items with rank <= n
+    mask = rank_series <= n
+    if not np.any(mask):
+        return np.nan
+    return np.mean(1.0 / rank_series[mask].astype(float))
+
+
+def analyze_sims(model_names, cosine_parquet_paths):
+
+    cpu_count = os.cpu_count()
+    if cpu_count is None or cpu_count == 0:
+        raise ValueError("No CPUs detected")
+    procs = int(cpu_count * 7 / 8)
+
+    # n values for which we will report Recall@n and MRR@n
+    n_for_recalls = [1, 3, 5, 10]
+
+    # Collect per-(model, candidate_group) metrics
+    metrics_rows = []
+    # Store per-(model, candidate_group) rank arrays for plotting later
+    all_ranks = {}
+
+    for model_name, parquet_path in zip(model_names, cosine_parquet_paths):
+
+        df = pd.read_parquet(parquet_path, engine="pyarrow")
+        half_length = round(len(df) / 2)
+
+        # Rank of the matching function among all other functions
+        reciprocal_rank_of_all_other_functions = (
+            lambda x: df.loc[x]
+            .drop(labels=x)
+            .sort_values(ascending=False)
+            .index.get_loc(x + half_length)
+            + 1  # 1-based rank
+        )
+
+        # Rank of the matching function among decompilation-only candidates
+        reciprocal_rank_of_just_decomp = (
+            lambda x: df.loc[x][half_length:]
+            .sort_values(ascending=False)
+            .index.get_loc(x + half_length)
+            + 1  # 1-based rank
+        )
+
+        iters = list(range(half_length))
+
+        ranked_all, ranked_decomp = (
+            Parallel(n_jobs=procs, verbose=2)(delayed(func)(i) for i in iters)
+            for func in [
+                reciprocal_rank_of_all_other_functions,
+                reciprocal_rank_of_just_decomp,
+            ]
+        )
+        ranked_all, ranked_decomp = np.array(ranked_all), np.array(ranked_decomp)
+
+        candidates = {
+            "Decompilation and Source Candidates": ranked_all,
+            "Decompilation Candidates Only": ranked_decomp,
+        }
+
+        for exp_name, data_arr in candidates.items():
+            # data_arr already contains 1-based ranks
+            ranks = data_arr.astype(int)
+
+            # Store ranks for plotting later
+            all_ranks[(model_name, exp_name)] = ranks
+
+            # Global MRR over all ranks
+            mrr_exp = MRR(ranks)
+
+            # Recall@n and MRR@n for each requested n
+            recall_vals = {n: recall_at_n(ranks, n) for n in n_for_recalls}
+            mrr_at_n_vals = {n: MRR_at_n(ranks, n) for n in [x for x in n_for_recalls if x != 1]} # We don't need to study MRR@1, it's always 1.
+
+            # Accumulate metrics into a row
+            row = {
+                "model": model_name,
+                "candidate_group": exp_name,
+                "MRR": mrr_exp,
+            }
+            for n in n_for_recalls:
+                row[f"Recall@{n}"] = recall_vals[n]
+                if n != 1: # see previous comment about MRR@1
+                    row[f"MRR@{n}"] = mrr_at_n_vals[n]
+
+            metrics_rows.append(row)
+
+    # Build metrics DataFrame for all models and candidate groups
+    metrics_df = pd.DataFrame(metrics_rows)
+
+    # Create TWO LaTeX tables: one per candidate group
+    candidate_groups = metrics_df["candidate_group"].unique()
+    for candidate_group in candidate_groups:
+        df_group = metrics_df[metrics_df["candidate_group"] == candidate_group].copy()
+
+        # Clean up column header name so it renders nicely in LaTeX
+        df_group.rename(
+            columns={
+                "candidate_group": "Candidate Group",
+                "model": "Model",
+            },
+            inplace=True,
+        )
+
+        # Use a safe version of the group name for filenames/labels
+        safe_group = (
+            candidate_group.replace(" ", "_")
+            .replace("/", "_")
+            .replace("\\", "_")
+        )
+        df_group.drop("Candidate Group", axis=1) # For aesthetics
+
+        # LaTeX table with caption mentioning the candidate group
+        df_group.to_latex(
+            f"metrics_table_{safe_group}.tex",
+            index=False,
+            float_format="%.4f",
+            column_format="ll" + "r" * (1 + 2 * len(n_for_recalls)),
+            caption=f"MRR, MRR@ n and Recall@ n for {candidate_group}.",
+            label=f"tab:metrics_{safe_group}",
+        )
+
+    # Create two distinct plots (one per candidate group) of the recall@n curve,
+    # each model plotted as a different color on each plot.
+    sns.set(style="whitegrid")
+
+    for candidate_group in candidate_groups:
+        plt.figure()
+        for model_name in model_names:
+            ranks = all_ranks[(model_name, candidate_group)]
+            # ECDF gives Recall@n curve: P(rank <= n) vs n
+            sns.ecdfplot(
+                data=ranks,
+                stat="proportion",
+                label=model_name,
+            )
+
+        plt.xlabel("n")
+        plt.ylabel("Fraction of Dataset Pairs Recalled ≤ n")
+        plt.title(f"Recall @ n for all n\n{candidate_group}")
+        plt.legend(title="Model")
+
+        safe_group = (
+            candidate_group.replace(" ", "_")
+            .replace("/", "_")
+            .replace("\\", "_")
+        )
+        out_name = f"recall_curve_{safe_group}.png"
+        plt.savefig(out_name, dpi=300, bbox_inches="tight")
+        plt.close()
