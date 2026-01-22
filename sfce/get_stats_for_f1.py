@@ -561,9 +561,9 @@ def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B",
         res = knn_ood_f1_with_pairs(
             cosine_parquet_path=str(cosine_path),
             k_list=k_list,
-            train_frac=0.8,
-            val_frac_id=0.8,
-            val_frac_ood=0.2,
+            train_frac=0.5,
+            val_frac_id=0.5,
+            val_frac_ood=0.5,
             random_state=42,
             num_bootstrap=1000,
         )
@@ -581,7 +581,7 @@ def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B",
     # 4) Generate LaTeX table summary
     latex_table = make_latex_summary_table(results_by_model)
     latex_file_path = "f1_stats_models.tex"
-    with open(latex_file_path, "wr") as f:
+    with open(latex_file_path, "w") as f:
         f.write(latex_table)
     print(latex_table)  # paste into your LaTeX document
 

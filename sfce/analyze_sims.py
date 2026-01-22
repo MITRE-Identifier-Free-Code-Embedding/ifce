@@ -1,11 +1,8 @@
 import pandas as pd
 import numpy as np
 from tqdm.auto import tqdm
-from multiprocessing import Pool
 from joblib import Parallel, delayed
 import os
-from scipy.stats import norm
-import bisect
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -50,7 +47,8 @@ def analyze_sims(model_names, cosine_parquet_paths):
         half_length = round(len(df) / 2)
 
         # Rank of the matching function among all other functions
-        reciprocal_rank_of_all_other_functions = (
+        # Searching Source -> Decompiled
+        s2d_reciprocal_rank_of_all_other_functions = (
             lambda x: df.loc[x]
             .drop(labels=x)
             .sort_values(ascending=False)
@@ -59,27 +57,59 @@ def analyze_sims(model_names, cosine_parquet_paths):
         )
 
         # Rank of the matching function among decompilation-only candidates
-        reciprocal_rank_of_just_decomp = (
+        # Searching Source -> Decompiled
+        s2d_reciprocal_rank_of_just_decomp = (
             lambda x: df.loc[x][half_length:]
             .sort_values(ascending=False)
             .index.get_loc(x + half_length)
             + 1  # 1-based rank
         )
 
-        iters = list(range(half_length))
+        # Rank of the matching function among all other functions
+        # Searching Decompiled -> Source
+        d2s_reciprocal_rank_of_all_other_functions = (
+            lambda x: df.loc[x]
+            .drop(labels=x)
+            .sort_values(ascending=False)
+            .index.get_loc(x - half_length)
+            + 1  # 1-based rank
+        )
 
-        ranked_all, ranked_decomp = (
-            Parallel(n_jobs=procs, verbose=2)(delayed(func)(i) for i in iters)
+        # Rank of the matching function among source-only candidates
+        # Searching Decompiled -> Source
+        d2s_reciprocal_rank_of_just_source = (
+            lambda x: df.loc[x][half_length:]
+            .sort_values(ascending=False)
+            .index.get_loc(x - half_length)
+            + 1  # 1-based rank
+        )
+
+        s2d_iters = list(range(half_length))
+        d2s_iters = list(range(half_length, half_length*2))
+
+        s2d_ranked_all, s2d_ranked_decomp = (
+            Parallel(n_jobs=procs, verbose=2)(delayed(func)(i) for i in s2d_iters)
             for func in [
-                reciprocal_rank_of_all_other_functions,
-                reciprocal_rank_of_just_decomp,
+                s2d_reciprocal_rank_of_all_other_functions,
+                s2d_reciprocal_rank_of_just_decomp,
             ]
         )
-        ranked_all, ranked_decomp = np.array(ranked_all), np.array(ranked_decomp)
+        s2d_ranked_all, s2d_ranked_decomp = np.array(s2d_ranked_all), np.array(s2d_ranked_decomp)
+
+        d2s_ranked_all, d2s_ranked_source = (
+            Parallel(n_jobs=procs, verbose=2)(delayed(func)(i) for i in d2s_iters)
+            for func in [
+                d2s_reciprocal_rank_of_all_other_functions,
+                d2s_reciprocal_rank_of_just_source,
+            ]
+        )
+        d2s_ranked_all, d2s_ranked_source = np.array(d2s_ranked_all), np.array(d2s_ranked_source)
 
         candidates = {
-            "Decompilation and Source Candidates": ranked_all,
-            "Decompilation Candidates Only": ranked_decomp,
+            "Searching Source -> Decompiled, Decompilation and Source Candidates": s2d_ranked_all,
+            "Searching Source -> Decompiled, Decompilation Candidates Only": s2d_ranked_decomp,
+            "Searching Decompiled -> Source, Decompilation and Source Candidates": d2s_ranked_all,
+            "Searching Decompiled -> Source, Source Candidates Only": d2s_ranked_source
         }
 
         for exp_name, data_arr in candidates.items():
@@ -132,7 +162,7 @@ def analyze_sims(model_names, cosine_parquet_paths):
             .replace("/", "_")
             .replace("\\", "_")
         )
-        df_group.drop("Candidate Group", axis=1) # For aesthetics
+        df_group = df_group.drop("Candidate Group", axis=1) # For aesthetics
 
         # LaTeX table with caption mentioning the candidate group
         df_group.to_latex(
