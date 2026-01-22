@@ -34,15 +34,15 @@ def train(ds_path : str, model_name: str):
     train_ds, val_ds = split_ds["train"], split_ds["test"]
 
     mini_batch_size = 1 # In nearly every case, this should always be 1
-    batch_size = 1024 # This is treated a little but like gradient accumulation, a little bit differently
+    batch_size = 64 # This is treated a little but like gradient accumulation, a little bit differently
     eval_batch_size = 4
-    grad_accum_steps = 4
+    grad_accum_steps = 8
 
     # misc init
     loss = CachedMultipleNegativesRankingLoss(model, mini_batch_size=mini_batch_size)
     # TODO eventually implement MatryoshkaLoss
 
-    run_name = f"mitRE_embed_{model_name}"
+    run_name = f"mitRE_embed_{model_name}_larger_bs"
 
     args = SentenceTransformerTrainingArguments(
         dataloader_drop_last=True,
@@ -56,10 +56,9 @@ def train(ds_path : str, model_name: str):
         learning_rate=2e-5,
         lr_scheduler_type="cosine",
         warmup_ratio=0.1,
-        fp16=False,  # Set to False if you get an error that your GPU can't run on FP16
-        bf16=True,  # Set to True if you have a GPU that supports BF16
+        fp16=False,  
+        bf16=True,  
         batch_sampler=BatchSamplers.NO_DUPLICATES,  # MultipleNegativesRankingLoss benefits from no duplicate samples in a batch
-        #TODO I belive this can be removed multi_dataset_batch_sampler=MultiDatasetBatchSamplers.PROPORTIONAL,
         # Optional tracking/debugging parameters:
         eval_strategy="steps",
         eval_steps=10,
