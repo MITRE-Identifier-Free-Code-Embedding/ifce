@@ -1,6 +1,5 @@
 from pathlib import Path
 from find_cosine_sim import find_cosine_sim
-import sys
 from datasets import load_from_disk
 from add_embeddings import yaml_safe_load
 import numpy as np
@@ -544,6 +543,7 @@ def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B",
                        "bge-small-en-v1.5"], 
          similarity_files=["../data/cosine_Qwen3-Embedding-0.6B.parquet", 
                            "../data/cosine_bge-small-en-v1.5.parquet"]):
+    out_path = Path(__file__).resolve() / Path("experiment_results")
 
     if not model_list:    
         # 1) Build cosine similarity parquet files (per model)
@@ -576,7 +576,7 @@ def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B",
         )
 
     # 3) Plot ROC / PR curves across models
-    plot_roc_pr_curves(results_by_model, title_suffix=" (Test Split)", save_path="roc_pr_models.png")
+    plot_roc_pr_curves(results_by_model, title_suffix=" (Test Split)", save_path=f"{out_path}/roc_pr_models.png")
 
     # 4) Generate LaTeX table summary
     latex_table = make_latex_summary_table(results_by_model)

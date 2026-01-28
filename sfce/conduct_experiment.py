@@ -49,8 +49,8 @@ if __name__ == "__main__":
     """
     model_names = ["bge-m3", "bge-small-en-v1.5", "Qwen3-Embedding-0.6B"]
     sim_files = ["../data/cosine_bge-m3.parquet", "../data/cosine_bge-small-en-v1.5.parquet", "../data/cosine_Qwen3-Embedding-0.6B.parquet"] 
-    get_stats_for_f1(model_list=model_names,
-                     similarity_files=sim_files)
+    #get_stats_for_f1(model_list=model_names,
+    #                 similarity_files=sim_files)
     print("Calibrated OOD detection")
     
     analyze_sims(model_names=model_names, cosine_parquet_paths=sim_files)

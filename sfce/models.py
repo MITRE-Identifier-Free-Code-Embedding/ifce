@@ -6,11 +6,13 @@ from vllm import LLM
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-# TODO change type annotations to reflect by model return types
+# TODO change type annotations to reflect model return types
 
 class EmbeddingModel:
-    def __init__(self, name:str):
+    def __init__(self, name:str, device: str = "cpu"):
         self.name = name
+        self.device = device
+        self.model = None
 
     def embed(self, str_to_embed:str) -> List[float]:
         raise NotImplementedError
@@ -18,10 +20,15 @@ class EmbeddingModel:
     def embed_batch(self, strs_to_embed:List[str]) -> List[List[float]]:
         raise NotImplementedError
     
+    def parameter_count(self) -> int:
+        if self.model == None:
+            raise ValueError("Model must be instantiated")
+        return sum(p.numel() for p in self.model.model.parameters())
+    
 class HFBGEEmbeddingModel(EmbeddingModel):
-    def __init__(self, 
+    def __init__(self,
                  model_tokenizer_hf_name: str | None = None, 
-                 device: str = "cpu", 
+                 device: str = "cpu",
                  **kwargs):
         super().__init__(**kwargs)
         self.device = device
@@ -51,13 +58,17 @@ class HFBGEEmbeddingModel(EmbeddingModel):
                                        truncation=True, 
                                        return_tensors='pt').to(self.device)
         return self._infer(encoded_input)
+    
+    def parameter_count(self) -> int:
+        return sum(p.numel() for p in self.model.model.model.parameters())
 
 
 class HFBGE3EmbeddingModel(EmbeddingModel):
-    def __init__(self, device:str = "cpu", **kwargs):
-        super().__init__(**kwargs)
-        self.device = device
-        self.model = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True)
+    def __init__(self, 
+                 name:str = 'bge-m3', 
+                 device:str = "cpu", **kwargs):
+        super().__init__(name, device, **kwargs)
+        self.model = BGEM3FlagModel(f"BAAI/{name}", use_fp16=True)
 
     def embed(self, str_to_embed: str) -> List[float]:
         result = self.model.encode([str_to_embed], 
@@ -71,7 +82,7 @@ class HFBGE3EmbeddingModel(EmbeddingModel):
                                        max_length=8192,)["dense_vecs"]
         return result.tolist()
 
-# TODO add Qwen3 models w / wo "prompting"
+# TODO add Qwen3 models w / wo "prompting"?
 class Qwen3EmbeddingModel(EmbeddingModel):
     def __init__(self, name:str, device:str = "cpu", prompting=False, **kwargs):
         super().__init__(name=name)
@@ -108,19 +119,42 @@ class Qwen3EmbeddingModel(EmbeddingModel):
         return f'Instruct: {self.task_description}\nQuery:{query}'
 
 class GemmaEmbeddingModel(EmbeddingModel):
-    def __init__(self, name: str):
-        super().__init__(name)
-        self.model = SentenceTransformer(model_name_or_path=f"google/{self.name}")
+    def __init__(self, name: str, device:str = "cpu"):
+        super().__init__(name, device=device)
+        self.model = SentenceTransformer(model_name_or_path=f"google/{self.name}", device=self.device)
 
-    def embed(self, strs_to_embed:str ) -> List[float]:
+    def embed(self, str_to_embed:str ):
         embedding = self.model.encode_document([str_to_embed]) # There are other functions, like encode_query. What to do about them?
         return embedding
     
 
-    def embed_batch(self, strs_to_embed:List[str]) -> List[List[float]]:
+    def embed_batch(self, strs_to_embed:List[str]):
         embeddings = self.model.encode_document(strs_to_embed) # There are other functions, like encode_query. What to do about them?
         return embeddings
     
+
+class BaseSentenceTransformerModel(EmbeddingModel):
+    def __init__(self, name: str, base_name: str, device:str = "cpu"):
+        super().__init__(name=name, device=device)
+        self.model = SentenceTransformer(model_name_or_path=f"{base_name}/{self.name}", device=self.device)
+
+    def embed(self, str_to_embed:str ) -> np.ndarray:
+        embedding = self.model.encode([str_to_embed])
+        return embedding
+    
+    def embed_batch(self, strs_to_embed:List[str]) -> np.ndarray:
+        embeddings = self.model.encode(strs_to_embed)
+        return embeddings
+    
+
+class SnowflakeEmbeddingModel(BaseSentenceTransformerModel):
+    def __init__(self, name: str, base_name: str = "Snowflake", device:str = "cpu"):
+        super().__init__(name=name, base_name=base_name, device=device)
+
+class SalesforceEmbeddingModel(BaseSentenceTransformerModel):
+    def __init__(self, name: str, base_name: str = "Salesforce", device:str = "cpu"):
+        super().__init__(name=name, base_name=base_name, device=device)
+
 
 MODEL_CLASS_MAP = {"bge-small-en-v1.5": HFBGEEmbeddingModel,
                     "bge-base-en-v1.5": HFBGEEmbeddingModel,
@@ -128,4 +162,6 @@ MODEL_CLASS_MAP = {"bge-small-en-v1.5": HFBGEEmbeddingModel,
                     "bge-m3": HFBGE3EmbeddingModel,
                     "Qwen3-Embedding-0.6B": Qwen3EmbeddingModel,
                     "Qwen3-Embedding-8": Qwen3EmbeddingModel,
-                    "embeddinggemma-300m": GemmaEmbeddingModel}
+                    "embeddinggemma-300m": GemmaEmbeddingModel,
+                    "snowflake-arctic-embed-l-v2.0": SnowflakeEmbeddingModel,
+                    "SFR-Embedding-Mistral": SalesforceEmbeddingModel}

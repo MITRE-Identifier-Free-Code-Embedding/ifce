@@ -5,6 +5,8 @@ from joblib import Parallel, delayed
 import os
 import seaborn as sns
 import matplotlib.pyplot as plt
+from models import MODEL_CLASS_MAP
+from pathlib import Path
 
 
 def recall_at_n(rank_series: np.ndarray, n: int):
@@ -28,6 +30,10 @@ def MRR_at_n(rank_series: np.ndarray, n: int):
 
 def analyze_sims(model_names, cosine_parquet_paths):
 
+    sns.set(style="whitegrid")
+
+    out_path = Path(__file__).resolve() / Path("experiment_results")
+
     cpu_count = os.cpu_count()
     if cpu_count is None or cpu_count == 0:
         raise ValueError("No CPUs detected")
@@ -40,6 +46,14 @@ def analyze_sims(model_names, cosine_parquet_paths):
     metrics_rows = []
     # Store per-(model, candidate_group) rank arrays for plotting later
     all_ranks = {}
+
+    model_size_dictionary = {}
+    for model_name in model_names:
+        # model = MODEL_CLASS_MAP[model_name](device="cpu", name=model_name)
+        # model_size_dictionary[model_name] = model.parameter_count()
+        import random
+        model_size_dictionary[model_name] = random.randint(100,1000)
+    
 
     for model_name, parquet_path in zip(model_names, cosine_parquet_paths):
 
@@ -78,7 +92,7 @@ def analyze_sims(model_names, cosine_parquet_paths):
         # Rank of the matching function among source-only candidates
         # Searching Decompiled -> Source
         d2s_reciprocal_rank_of_just_source = (
-            lambda x: df.loc[x][half_length:]
+            lambda x: df.loc[x][:half_length]
             .sort_values(ascending=False)
             .index.get_loc(x - half_length)
             + 1  # 1-based rank
@@ -106,10 +120,10 @@ def analyze_sims(model_names, cosine_parquet_paths):
         d2s_ranked_all, d2s_ranked_source = np.array(d2s_ranked_all), np.array(d2s_ranked_source)
 
         candidates = {
-            "Searching Source -> Decompiled, Decompilation and Source Candidates": s2d_ranked_all,
-            "Searching Source -> Decompiled, Decompilation Candidates Only": s2d_ranked_decomp,
-            "Searching Decompiled -> Source, Decompilation and Source Candidates": d2s_ranked_all,
-            "Searching Decompiled -> Source, Source Candidates Only": d2s_ranked_source
+            "Searching Source to Decompiled, Decompilation and Source Candidates": s2d_ranked_all,
+            "Searching Source to Decompiled, Decompilation Candidates Only": s2d_ranked_decomp,
+            "Searching Decompiled to Source, Decompilation and Source Candidates": d2s_ranked_all,
+            "Searching Decompiled to Source, Source Candidates Only": d2s_ranked_source
         }
 
         for exp_name, data_arr in candidates.items():
@@ -129,6 +143,7 @@ def analyze_sims(model_names, cosine_parquet_paths):
             # Accumulate metrics into a row
             row = {
                 "model": model_name,
+                "size (B of params)": model_size_dictionary[model_name],
                 "candidate_group": exp_name,
                 "MRR": mrr_exp,
             }
@@ -166,7 +181,7 @@ def analyze_sims(model_names, cosine_parquet_paths):
 
         # LaTeX table with caption mentioning the candidate group
         df_group.to_latex(
-            f"metrics_table_{safe_group}.tex",
+            f"{out_path}/metrics_table_{safe_group}.tex",
             index=False,
             float_format="%.4f",
             column_format="ll" + "r" * (1 + 2 * len(n_for_recalls)),
@@ -174,9 +189,19 @@ def analyze_sims(model_names, cosine_parquet_paths):
             label=f"tab:metrics_{safe_group}",
         )
 
+        metrics_rows = [col for col in df_group.columns if "MRR" in col or "Recall" in col]
+        for metric in metrics_rows:
+            plt.figure()
+            sns.barplot(df_group, x="Model", y=metric, hue="size (B of params)", legend=True)
+            plt.suptitle(f"Model {metric}, colored by size", fontsize=18)
+            plt.title(candidate_group, fontsize=10)
+            plt.savefig(f"{out_path}/{metric.replace("@", "at")}_by_model_and_size_{safe_group}")
+            plt.close()
+        
+
     # Create two distinct plots (one per candidate group) of the recall@n curve,
     # each model plotted as a different color on each plot.
-    sns.set(style="whitegrid")
+    
 
     for candidate_group in candidate_groups:
         plt.figure()
@@ -199,6 +224,6 @@ def analyze_sims(model_names, cosine_parquet_paths):
             .replace("/", "_")
             .replace("\\", "_")
         )
-        out_name = f"recall_curve_{safe_group}.png"
+        out_name = f"{out_path}/recall_curve_{safe_group}.png"
         plt.savefig(out_name, dpi=300, bbox_inches="tight")
         plt.close()
