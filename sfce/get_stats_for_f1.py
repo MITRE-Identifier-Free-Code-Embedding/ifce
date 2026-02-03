@@ -5,6 +5,7 @@ from add_embeddings import yaml_safe_load
 import numpy as np
 import pandas as pd
 import math
+import os
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, precision_recall_curve, auc, average_precision_score
 
@@ -543,7 +544,9 @@ def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B",
                        "bge-small-en-v1.5"], 
          similarity_files=["../data/cosine_Qwen3-Embedding-0.6B.parquet", 
                            "../data/cosine_bge-small-en-v1.5.parquet"]):
-    out_path = Path(__file__).resolve() / Path("experiment_results")
+    
+    out_path = Path(__file__).resolve().parent / Path("experiment_results")
+    os.makedirs(out_path, exist_ok=True)
 
     if not model_list:    
         # 1) Build cosine similarity parquet files (per model)

@@ -32,7 +32,8 @@ def analyze_sims(model_names, cosine_parquet_paths):
 
     sns.set(style="whitegrid")
 
-    out_path = Path(__file__).resolve() / Path("experiment_results")
+    out_path = Path(__file__).resolve().parent / Path("experiment_results")
+    os.makedirs(out_path, exist_ok=True)
 
     cpu_count = os.cpu_count()
     if cpu_count is None or cpu_count == 0:

@@ -5,8 +5,11 @@ import torch
 from vllm import LLM
 import numpy as np
 from sentence_transformers import SentenceTransformer
-
+import os
+from pathlib import Path
 # TODO change type annotations to reflect model return types
+
+THIS_FILES_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 
 class EmbeddingModel:
     def __init__(self, name:str, device: str = "cpu"):
@@ -24,26 +27,17 @@ class EmbeddingModel:
         if self.model == None:
             raise ValueError("Model must be instantiated")
         return sum(p.numel() for p in self.model.model.parameters())
-    
-class HFBGEEmbeddingModel(EmbeddingModel):
-    def __init__(self,
-                 model_tokenizer_hf_name: str | None = None, 
-                 device: str = "cpu",
-                 **kwargs):
-        super().__init__(**kwargs)
-        self.device = device
-        self.model_hf_name = f"BAAI/{self.name}"
-        self.model = AutoModel.from_pretrained(self.model_hf_name,
-                                               device_map=device).eval()
-        self.tokenizer = AutoTokenizer.from_pretrained(model_tokenizer_hf_name if model_tokenizer_hf_name is not None else self.model_hf_name)
 
+
+class HFEmbeddingModel(EmbeddingModel):
+        
     def _infer(self,encoded_input):
-        with torch.no_grad():
-            model_output = self.model(**encoded_input)
-            # Perform pooling. In this case, cls pooling.
-            sentence_embeddings = model_output[0][:, 0]
-            sentence_embeddings = torch.nn.functional.normalize(sentence_embeddings, p=2, dim=1)
-        return sentence_embeddings.to('cpu').tolist()
+            with torch.no_grad():
+                model_output = self.model(**encoded_input)
+                # Perform pooling. In this case, cls pooling.
+                sentence_embeddings = model_output[0][:, 0]
+                sentence_embeddings = torch.nn.functional.normalize(sentence_embeddings, p=2, dim=1)
+            return sentence_embeddings.to('cpu').tolist()
 
     def embed(self, str_to_embed: str) -> List[float]:
         encoded_input = self.tokenizer([str_to_embed], 
@@ -61,6 +55,25 @@ class HFBGEEmbeddingModel(EmbeddingModel):
     
     def parameter_count(self) -> int:
         return sum(p.numel() for p in self.model.model.model.parameters())
+    
+class HFBGEEmbeddingModel(HFEmbeddingModel):
+    def __init__(self,
+                 model_tokenizer_hf_name: str | None = None, 
+                 device: str = "cpu",
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.device = device
+        self.model_hf_name = f"BAAI/{self.name}"
+        self.model = AutoModel.from_pretrained(self.model_hf_name,
+                                               device_map=device).eval()
+        self.tokenizer = AutoTokenizer.from_pretrained(model_tokenizer_hf_name if model_tokenizer_hf_name is not None else self.model_hf_name)
+
+class CustomHFEmbeddingModel(HFEmbeddingModel):
+    def __init__(self, name: str, device:str = "cpu"):
+        super().__init__(name=name, device=device)
+        models_path = Path(THIS_FILES_DIRECTORY) / "models" / name
+        self.model = AutoModel.from_pretrained(models_path, device_map=device).eval()
+        self.tokenizer = AutoTokenizer.from_pretrained(models_path)
 
 
 class HFBGE3EmbeddingModel(EmbeddingModel):
@@ -92,6 +105,40 @@ class Qwen3EmbeddingModel(EmbeddingModel):
         self.prompting = prompting
         self.task_description = "Given a source code function or a decompiled code, find the respective opposite representation of source code or decompilation that is equivalent."
         self.model = LLM(model=f"Qwen/{self.name}")
+        self.truncate_length = self.model.model_config.max_model_len - 1
+    
+    def _potentially_add_query(self, str_or_strs: str | List[str]) -> str | List[str]:
+        if isinstance(str_or_strs, str):
+            str_or_strs = self._get_detailed_instruct(str_or_strs) if self.prompting else str_or_strs
+        elif isinstance(str_or_strs, list):
+            str_or_strs = [self._get_detailed_instruct(item) if self.prompting else item for item in str_or_strs]
+        return str_or_strs
+
+    def embed(self, str_to_embed: str) -> List[float]:
+        str_to_embed = self._potentially_add_query(str_to_embed)
+        outputs = self.model.embed([str_to_embed], 
+                                   truncate_prompt_tokens=self.truncate_length,
+                                   use_tqdm=False)
+        return [np.array(o.outputs.embedding) for o in outputs]
+
+    def embed_batch(self, strs_to_embed:List[str]) -> List[List[float]]:
+        strs_to_embed = self._potentially_add_query(strs_to_embed)
+        outputs = self.model.embed(strs_to_embed, 
+                                   truncate_prompt_tokens=self.truncate_length, # Without the -1, vllm stalls indef.
+                                   use_tqdm=False)
+        return [np.array(o.outputs.embedding) for o in outputs]
+
+    def _get_detailed_instruct(self, query: str) -> str:
+        return f'Instruct: {self.task_description}\nQuery:{query}'
+    
+class CustomEmbeddingModelVLLM(EmbeddingModel):
+    def __init__(self, name:str, device:str = "cpu", prompting=False, **kwargs):
+        super().__init__(name=name)
+        
+        self.prompting = prompting
+        self.task_description = "Given a source code function or a decompiled code, find the respective opposite representation of source code or decompilation that is equivalent."
+        self.model_path = Path(THIS_FILES_DIRECTORY) / "models" / self.name
+        self.model = LLM(model=str(self.model_path))
         self.truncate_length = self.model.model_config.max_model_len - 1
     
     def _potentially_add_query(self, str_or_strs: str | List[str]) -> str | List[str]:
@@ -165,3 +212,7 @@ MODEL_CLASS_MAP = {"bge-small-en-v1.5": HFBGEEmbeddingModel,
                     "embeddinggemma-300m": GemmaEmbeddingModel,
                     "snowflake-arctic-embed-l-v2.0": SnowflakeEmbeddingModel,
                     "SFR-Embedding-Mistral": SalesforceEmbeddingModel}
+
+MODEL_CLASS_MAP.update({entry.name:CustomEmbeddingModelVLLM
+                        for entry in Path(Path(THIS_FILES_DIRECTORY) / "models").iterdir() 
+                        if entry.is_dir()})
