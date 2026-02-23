@@ -183,6 +183,7 @@ class GemmaEmbeddingModel(EmbeddingModel):
 class BaseSentenceTransformerModel(EmbeddingModel):
     def __init__(self, name: str, base_name: str, device:str = "cpu"):
         super().__init__(name=name, device=device)
+        self.base_name = base_name
         self.model = SentenceTransformer(model_name_or_path=f"{base_name}/{self.name}", device=self.device)
 
     def embed(self, str_to_embed:str ) -> np.ndarray:
@@ -202,17 +203,50 @@ class SalesforceEmbeddingModel(BaseSentenceTransformerModel):
     def __init__(self, name: str, base_name: str = "Salesforce", device:str = "cpu"):
         super().__init__(name=name, base_name=base_name, device=device)
 
+class NomicAIEmbeddingModel(BaseSentenceTransformerModel):
+    def __init__(self, name: str, base_name: str = "nomic-ai", device:str = "cpu"):
+        super().__init__(name=name, base_name=base_name, device=device)
+
+class JinaAIEmbeddingModel(BaseSentenceTransformerModel):
+    def __init__(self, name: str, base_name: str = "jinaai", device:str = "cpu"):
+        super().__init__(name=name, base_name=base_name, device=device)
+
+class CodeSageEmbeddingModel(BaseSentenceTransformerModel):
+    def __init__(self, name: str, base_name: str = "codesage", device:str = "cpu"):
+        super().__init__(name=name, base_name=base_name, device=device)
+
 
 MODEL_CLASS_MAP = {"bge-small-en-v1.5": HFBGEEmbeddingModel,
                     "bge-base-en-v1.5": HFBGEEmbeddingModel,
                     "bge-large-en-v1.5": HFBGEEmbeddingModel,
                     "bge-m3": HFBGE3EmbeddingModel,
                     "Qwen3-Embedding-0.6B": Qwen3EmbeddingModel,
-                    "Qwen3-Embedding-8": Qwen3EmbeddingModel,
+                    "Qwen3-Embedding-8B": Qwen3EmbeddingModel,
                     "embeddinggemma-300m": GemmaEmbeddingModel,
                     "snowflake-arctic-embed-l-v2.0": SnowflakeEmbeddingModel,
-                    "SFR-Embedding-Mistral": SalesforceEmbeddingModel}
+                    "SFR-Embedding-Mistral": SalesforceEmbeddingModel,
+                    "nomic-embed-code": NomicAIEmbeddingModel,
+                    "jina-embeddings-v2-base-code": JinaAIEmbeddingModel,
+                    "codesage-large-v2": CodeSageEmbeddingModel}
 
-MODEL_CLASS_MAP.update({entry.name:CustomEmbeddingModelVLLM
-                        for entry in Path(Path(THIS_FILES_DIRECTORY) / "models").iterdir() 
-                        if entry.is_dir()})
+
+MODEL_SIZE_MAP = {"bge-small-en-v1.5": 0.033,
+                    "bge-base-en-v1.5": 0.1,
+                    "bge-large-en-v1.5": 0.3,
+                    "bge-m3": 0.56,
+                    "Qwen3-Embedding-0.6B": 0.6,
+                    "Qwen3-Embedding-8B": 8,
+                    "embeddinggemma-300m": 0.3,
+                    "snowflake-arctic-embed-l-v2.0": 0.3,
+                    "SFR-Embedding-Mistral": 7,
+                    "nomic-embed-code": 7,
+                    "jina-embeddings-v2-base-code": 0.16,
+                    "codesage-large-v2": 1.3
+                    }
+
+for entry in Path(Path(THIS_FILES_DIRECTORY) / "models").iterdir():
+    if entry.is_dir():
+        MODEL_CLASS_MAP.update({entry.name:CustomEmbeddingModelVLLM})
+        MODEL_SIZE_MAP.update({entry.name:0.6})
+
+assert(set(MODEL_CLASS_MAP.keys()) == set(MODEL_CLASS_MAP.keys()))

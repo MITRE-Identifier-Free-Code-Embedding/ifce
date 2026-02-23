@@ -1,5 +1,8 @@
 from pathlib import Path
-from find_cosine_sim import find_cosine_sim
+from tkinter import NO
+
+from matplotlib.widgets import EllipseSelector
+from find_distances import find_distances
 from datasets import load_from_disk
 from add_embeddings import yaml_safe_load
 import numpy as np
@@ -250,10 +253,10 @@ def knn_ood_f1_with_pairs(
     cosine_df = pd.read_parquet(cosine_parquet_path)
     cosine_matrix = cosine_df.values
     num_ids = cosine_matrix.shape[0]
+    cosine_matrix = np.clip(cosine_matrix, 
+                            a_max=np.max(np.nan_to_num(cosine_matrix, posinf=0)), 
+                            a_min=0) # values should never exceed 1.
 
-    # You must have defined build_pair_based_splits_for_f1, _compute_knn_nonconformity,
-    # _precision_recall_f1_from_scores, _bootstrap_f1_ci, and partner_index as in the
-    # previous message.
     splits = build_pair_based_splits_for_f1(
         num_ids=num_ids,
         train_frac=train_frac,
@@ -482,6 +485,7 @@ def plot_roc_pr_curves(results_by_model: dict, title_suffix: str = "", save_path
     plt.tight_layout()
     if save_path is not None:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close()
     return ax_roc, ax_pr
 
 
@@ -550,7 +554,7 @@ def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B",
 
     if not model_list:    
         # 1) Build cosine similarity parquet files (per model)
-        model_list, similarity_files = find_cosine_sim(
+        model_list, similarity_files = find_distances(
             data_input_dir="path/to/hf_dataset",
             model_config_path="path/to/models.yaml",
         )
@@ -558,35 +562,45 @@ def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B",
 
     # 2) Run F1-optimized kNN OOD detection for each model
     k_list = [1, 3, 5, 10, 20, 50]
-    results_by_model = {}
 
-    for model, cosine_path in zip(model_list, similarity_files):
-        res = knn_ood_f1_with_pairs(
-            cosine_parquet_path=str(cosine_path),
-            k_list=k_list,
-            train_frac=0.5,
-            val_frac_id=0.5,
-            val_frac_ood=0.5,
-            random_state=42,
-            num_bootstrap=1000,
-        )
-        results_by_model[model] = res
-        tr = res["test_results"]
-        print(
-            f"{model}: k*={res['best_k']}, tau*={res['best_threshold']:.8f}, "
-            f"F1_test={tr['F1_test']:.3f}, Prec={tr['precision_test']:.3f}, "
-            f"Rec={tr['recall_test']:.3f}"
-        )
 
-    # 3) Plot ROC / PR curves across models
-    plot_roc_pr_curves(results_by_model, title_suffix=" (Test Split)", save_path=f"{out_path}/roc_pr_models.png")
+    for distance_type in ["Cosine","Euclidean"]:
+            
+        results_by_model = {}
 
-    # 4) Generate LaTeX table summary
-    latex_table = make_latex_summary_table(results_by_model)
-    latex_file_path = "f1_stats_models.tex"
-    with open(latex_file_path, "w") as f:
-        f.write(latex_table)
-    print(latex_table)  # paste into your LaTeX document
+        for model, distance_file_path in zip(model_list, similarity_files):
+
+            if distance_type.lower() not in distance_file_path:
+                continue
+
+            res = knn_ood_f1_with_pairs(
+                cosine_parquet_path=str(distance_file_path),
+                k_list=k_list,
+                train_frac=0.5,
+                val_frac_id=0.5,
+                val_frac_ood=0.5,
+                random_state=42,
+                num_bootstrap=1000,
+            )
+            results_by_model[model] = res
+            tr = res["test_results"]
+            print(
+                f"{model}: k*={res['best_k']}, tau*={res['best_threshold']:.8f}, "
+                f"F1_test={tr['F1_test']:.3f}, Prec={tr['precision_test']:.3f}, "
+                f"Rec={tr['recall_test']:.3f}"
+            )
+
+        # 3) Plot ROC / PR curves across models
+        plot_roc_pr_curves(results_by_model, 
+                           title_suffix=f" (Test Split) - {distance_type} Distance", 
+                           save_path=f"{out_path}/roc_pr_models_{distance_type.lower()}.png")
+
+        # 4) Generate LaTeX table summary
+        latex_table = make_latex_summary_table(results_by_model)
+        latex_file_path = f"f1_stats_models_{distance_type.lower()}.tex"
+        with open(latex_file_path, "w") as f:
+            f.write(latex_table)
+        print(latex_table)  # paste into your LaTeX document
 
 if __name__ == "__main__":
     get_stats_for_f1()

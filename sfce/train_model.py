@@ -36,7 +36,7 @@ def train(ds_path : str, model_name: str):
     mini_batch_size = 1 # In nearly every case, this should always be 1
     batch_size = 64 # This is treated a little but like gradient accumulation, a little bit differently
     eval_batch_size = 4
-    grad_accum_steps = 4 # TODO maybe pull this from the config automatically?
+    grad_accum_steps = 2 # TODO maybe pull this from the config automatically?
 
     # misc init
     loss = CachedMultipleNegativesRankingLoss(model, mini_batch_size=mini_batch_size)
