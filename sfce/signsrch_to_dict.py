@@ -200,6 +200,7 @@ def latex_table_normality(normality_results, caption="AP Normality tests (Shapir
     return table_str
 
 def plot_wilcoxon_pvalue_heatmap(paired_results,
+                                 exp_name:str,
                                  alpha=0.05,
                                  log10_transform=True,
                                  cmap="viridis",
@@ -284,7 +285,7 @@ def plot_wilcoxon_pvalue_heatmap(paired_results,
                         color="white" if masked_data[i, j] > np.nanmax(masked_data) / 2 else "black",
                         fontsize=8)
 
-    title = "Pairwise Wilcoxon p-values"
+    title = "Pairwise Wilcoxon p-values, {exp_name}"
     if log10_transform:
         title += " (darker = more significant)"
     ax.set_title(title)
@@ -403,7 +404,7 @@ def plot_overlaid_histograms(ap_dict, bins=20, density=False, alpha=0.4):
     plt.savefig("overlaid_histograms.png")
     plt.close()
 
-def plot_overlaid_kde(ap_dict, bw_method="scott"):
+def plot_overlaid_kde(ap_dict, title:str, fig_path:str | Path, bw_method="scott"):
     """
     Optional: plot overlaid kernel density estimates for smoother distribution comparison.
     """
@@ -417,11 +418,11 @@ def plot_overlaid_kde(ap_dict, bw_method="scott"):
         plt.plot(xs, kde(xs), label=model)
     plt.xlabel("Average Precision")
     plt.ylabel("Density")
-    plt.title("KDE of AP Distributions by Model")
+    plt.title(title)
     plt.legend()
     plt.tight_layout()
     plt.show()
-    plt.savefig("overlaid_kde.png")
+    plt.savefig(fig_path)
     plt.close()
 
 def plot_map_histograms(AP_dictionary, bins=50):
@@ -477,7 +478,21 @@ def get_embeddings_from_model(keys, local_model, batch_size, model_name):
             embedding_dictionary[k] = emb
     return embedding_dictionary
 
-def main(model_config_path: str):
+def get_AP(relevant, ranked):
+
+    hits = np.fromiter((c in relevant for c in ranked), dtype=np.int32)
+    R = hits.sum()  # should equal len(relevant) if all relevant are in candidates
+
+    if R == 0:
+        AP = 0.0
+    else:
+        cum_hits = np.cumsum(hits)
+        ranks = np.arange(1, len(hits) + 1)
+        precision_at_k = cum_hits / ranks
+        AP = (precision_at_k * hits).sum() / len(relevant)
+    return AP
+
+def run_signsrch_exps(model_config_path: str):
 
     # Takes one input arg: path to signsrch.sig file
     if len(sys.argv) < 2:
@@ -490,7 +505,7 @@ def main(model_config_path: str):
     for name, data in sigs.items():
         sigs[name] = set(data.split(', '))
 
-    AP_dict = {}
+    AP_dict_exp1, AP_dict_exp2 = {}, {}
 
     device = "cuda"
     yaml_config = yaml_safe_load(model_config_path)
@@ -545,76 +560,92 @@ def main(model_config_path: str):
         constants_ranked_by_algorithm = Parallel(n_jobs=procs, verbose=2)(delayed(find_constants_index)(i) for i in sorted_keys)
         
         APs = []
-        for i, sig in enumerate(tqdm(sorted_keys, f"Processing signatures during Experiment 1 for {model_name}")):
+        for i, sig in enumerate(tqdm(sorted_keys, 
+                                     desc=f"Processing signatures during Experiment 1 for {model_name}")):
             
             relevant = sigs[sig]
             ranked = list(constants_ranked_by_algorithm[i])  # ranked constant ids/strings
 
-            hits = np.fromiter((c in relevant for c in ranked), dtype=np.int32)
-            R = hits.sum()  # should equal len(relevant) if all relevant are in candidates
-
-            if R == 0:
-                AP = 0.0
-            else:
-                cum_hits = np.cumsum(hits)
-                ranks = np.arange(1, len(hits) + 1)
-                precision_at_k = cum_hits / ranks
-                AP = (precision_at_k * hits).sum() / len(relevant)
+            AP = get_AP(relevant=relevant, ranked=ranked)
             APs.append(AP)
             
-        AP_dict[model_name] = APs
+        AP_dict_exp1[model_name] = APs
 
-        # at position i, the rank of .loc[i] represents is distance, ranked, to the target
+        
     
         # Experiment 2: Rank constants in same "algorithm class"
-        all_values = []
-        for value in sigs.values():
-            all_values.extend(list(value))     
+        df_no_algo_classes = df.drop(columns=list(sigs.keys()),
+                                     index=list(sigs.keys()))  
+        
+        find_constants_in_algo_class_index = lambda x: (df_no_algo_classes.loc[x]
+            .drop(index=x)
+            .sort_values(ascending=False)
+            .index)
+
+        reversed_sigs = {value: key for key, value in sigs.items()}
+        for i, constant in enumerate(tqdm(find_constants_in_algo_class_index.columns, 
+                                          desc=f"Processing signatures during Experiment 2 for {model_name}")):
+            
+            algo_name = reversed_sigs[constant]
+            relevant = sigs[algo_name]
+            ranked = list(find_constants_in_algo_class_index[i])  # ranked constant ids/strings
+
+            AP = get_AP(relevant=relevant, ranked=ranked)
+            APs.append(AP)
+            
+        AP_dict_exp2[model_name] = APs
+        
 
         del(local_model)   
 
-    plot_map_histograms(AP_dict)
-    alpha = 0.05
-    descriptives = summarize_descriptives(AP_dict) 
-    pprint(descriptives)
+    for AP_dict, exp_name, extension_name in ([AP_dict_exp1, "Given Group name, finding relevant constants", "g_2_c"], 
+                              [AP_dict_exp2, "Given Constant, Finding Constants in Same Group", "c_2_c"]):
+        plot_map_histograms(AP_dict)
+        alpha = 0.05
+        descriptives = summarize_descriptives(AP_dict) 
+        pprint(descriptives)
 
 
-    normality = test_normality(AP_dict, alpha=alpha)
-    pprint(normality)
-    latex_table_normality(normality_results=normality, 
-                        caption="Shapiro–Wilk normality tests for AP distributions",
-                        label="tab:ap_normality",
-                        file_path = out_path / Path("sig_normalit.tex"))
-    paired_results = paired_tests(AP_dict, alpha=alpha)   # if APs are aligned
-    pprint(paired_results)
+        normality = test_normality(AP_dict, alpha=alpha)
+        pprint(normality)
+        latex_table_normality(normality_results=normality, 
+                            caption=f"Shapiro–Wilk normality tests for AP distributions, {exp_name}",
+                            label="tab:ap_normality",
+                            file_path = out_path / Path(f"sig_normalit_{extension_name}.tex"))
+        paired_results = paired_tests(AP_dict, alpha=alpha)   # if APs are aligned
+        pprint(paired_results)
 
-    tex_paired = latex_table_paired_wilcoxon(
-    paired_results,
-    caption="Pairwise Wilcoxon signed-rank tests for AP by model",
-    label="tab:ap_paired_wilcoxon",
-    file_path=out_path / Path("ap_paired_wilcoxon.tex"),
-    )
-    # Plain p-value heatmap
-    plot_wilcoxon_pvalue_heatmap(
+        tex_paired = latex_table_paired_wilcoxon(
         paired_results,
-        alpha=0.05,
-        log10_transform=False,
-        cmap="viridis",
-        file_path=out_path / Path("ap_wilcoxon_pvalues.png"),
-    )
+        caption=f"Pairwise Wilcoxon signed-rank tests for AP by model, {exp_name}",
+        label="tab:ap_paired_wilcoxon",
+        file_path=out_path / Path(f"ap_paired_wilcoxon_{extension_name}.tex"),
+        )
+        # Plain p-value heatmap
+        plot_wilcoxon_pvalue_heatmap(
+            paired_results,
+            exp_name=exp_name,
+            alpha=0.05,
+            log10_transform=False,
+            cmap="viridis",
+            file_path=out_path / Path(f"ap_wilcoxon_pvalues_{extension_name}.png"),
+        )
 
-    # -log10(p) heatmap (recommended)
-    plot_wilcoxon_pvalue_heatmap(
-        paired_results,
-        alpha=0.05,
-        log10_transform=True,
-        cmap="magma",
-        file_path=out_path / Path("ap_wilcoxon_pvalues_logp.png"),
-    )
+        # -log10(p) heatmap (recommended)
+        plot_wilcoxon_pvalue_heatmap(
+            paired_results,
+            exp_name=exp_name,
+            alpha=0.05,
+            log10_transform=True,
+            cmap="magma",
+            file_path=out_path / Path(f"ap_wilcoxon_pvalues_logp_{extension_name}.png"),
+        )
 
-    # plot_overlaid_histograms(AP_dict, bins=50, density=True) # This hasn't been useful and is ugly
+        # plot_overlaid_histograms(AP_dict, bins=50, density=True) # This hasn't been useful and is ugly
 
-    plot_overlaid_kde(AP_dict)
+        plot_overlaid_kde(AP_dict, 
+                          title=f"KDE of AP Distributions by Model, {exp_name}",
+                          fig_path=out_path / Path(f"overlaid_kde_{extension_name}.png"))
 
 if __name__ == "__main__":
-    main(model_config_path = "../config/experiment_config.yaml")
+    run_signsrch_exps(model_config_path = "../config/experiment_config.yaml")
