@@ -143,6 +143,54 @@ def summarize_descriptives(ap_dict):
         }
     return summary
 
+
+def latex_from_summary(summary,
+                       filepath,
+                       caption="Descriptive statistics",
+                       label="tab:descriptives"):
+    """
+    Generate a LaTeX table from summarize_descriptives output and save to file.
+
+    Parameters
+    ----------
+    summary : dict
+        Output of summarize_descriptives.
+    filepath : str
+        Path where the .tex file will be written.
+    caption : str, optional
+        Table caption.
+    label : str, optional
+        LaTeX label for referencing the table.
+    """
+    # Column order
+    cols = ["mean", "std", "median", "q1", "q3"]
+    col_header = " & ".join(["Model"] + [c.capitalize() for c in cols]) + r" \\"
+
+    lines = []
+    lines.append(r"\begin{table}[ht]")
+    lines.append(r"  \centering")
+    lines.append(r"  \begin{tabular}{lccccc}")
+    lines.append(r"    \hline")
+    lines.append("    " + col_header)
+    lines.append(r"    \hline")
+
+    for model, stats in summary.items():
+        row_vals = [f"{stats[k]:.3f}" for k in cols]
+        row = " & ".join([str(model)] + row_vals) + r" \\"
+        lines.append("    " + row)
+
+    lines.append(r"    \hline")
+    lines.append(r"  \end{tabular}")
+    lines.append(f"  \caption{{{caption}}}")
+    lines.append(f"  \label{{{label}}}")
+    lines.append(r"\end{table}")
+
+    content = "\n".join(lines) + "\n"
+    with open(filepath, "w") as f:
+        f.write(content)
+
+    return content
+
 def test_normality(ap_dict, alpha=0.05):
     """
     Test normality of each model's AP distribution using Shapiro–Wilk.
@@ -571,8 +619,6 @@ def run_signsrch_exps(model_config_path: str):
             
         AP_dict_exp1[model_name] = APs
 
-        
-    
         # Experiment 2: Rank constants in same "algorithm class"
         df_no_algo_classes = df.drop(columns=list(sigs.keys()),
                                      index=list(sigs.keys()))  
@@ -594,7 +640,6 @@ def run_signsrch_exps(model_config_path: str):
             APs.append(AP)
             
         AP_dict_exp2[model_name] = APs
-        
 
         del(local_model)   
 
@@ -604,6 +649,10 @@ def run_signsrch_exps(model_config_path: str):
         alpha = 0.05
         descriptives = summarize_descriptives(AP_dict) 
         pprint(descriptives)
+        latex_from_summary(summary=descriptives, 
+                           filepath = out_path / Path(f"distributions_summary_{extension_name}.tex"),
+                           caption=f"Summary Statistics for AP by model, {exp_name}",
+                           label="tab:ap_statistics")
 
 
         normality = test_normality(AP_dict, alpha=alpha)
