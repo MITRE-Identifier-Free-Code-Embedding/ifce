@@ -60,6 +60,36 @@ def _get_safe_group(candidate_group):
             .replace("\\", "_")
         )
 
+def make_correlation_scatter(metrics_df, out_path, candidate_groups):
+
+    for candidate_group in candidate_groups:
+        df_group = metrics_df[metrics_df["candidate_group"] == candidate_group].copy()
+        safe_group = _get_safe_group(candidate_group=candidate_group)
+
+        fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
+
+        palette = sns.color_palette("tab10", n_colors=len(df_group))
+        for i, (_, row) in enumerate(df_group.iterrows()):
+            ax.scatter(
+                row["Spearman Correlation - Function Length"],
+                row["Spearman Correlation - Function Argument Count"],
+                color=palette[i],
+                s=80,
+                label=row["model"],
+                zorder=3,
+            )
+
+        ax.axhline(0, color="gray", linewidth=0.7, linestyle="--")
+        ax.axvline(0, color="gray", linewidth=0.7, linestyle="--")
+        ax.set_xlabel("Spearman r  (Rank vs. Function Length)")
+        ax.set_ylabel("Spearman r  (Rank vs. Argument Count)")
+        ax.legend(title="Model", framealpha=0.85, fontsize=8)
+        plt.suptitle("Rank Correlation by Model", fontsize=13)
+        plt.title(candidate_group, fontsize=9)
+
+        plt.savefig(f"{out_path}/rank_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
 
 def analyze_sims(model_names: List[str], 
                  cosine_parquet_paths:List[str], 
@@ -115,7 +145,7 @@ def analyze_sims(model_names: List[str],
               label_b="decompilation",
               filename=f"{out_path}/function_sigs_boxplot.png")
 
-    assert(False)
+    
     for model_name, parquet_path in zip(model_names, cosine_parquet_paths):
 
         df = pd.read_parquet(parquet_path, engine="pyarrow")
@@ -230,10 +260,10 @@ def analyze_sims(model_names: List[str],
                 "size (B of params)": MODEL_SIZE_MAP[model_name],
                 "candidate_group": exp_name,
                 "MRR": mrr_exp,
-                "Pearson Correlation - Function Length": lengths_r,
-                "Pearson p-value - Function Length": lengths_p,
-                "Pearson Correlation - Function Argument Count": sigs_r,
-                "Pearson p-value - Function Length": sigs_p
+                "Spearman Correlation - Function Length": lengths_r,
+                "Spearman p-value - Function Length": lengths_p,
+                "Spearman Correlation - Function Argument Count": sigs_r,
+                "Spearman p-value - Function Argument Count": sigs_p
             }
             for k in k_for_recalls:
                 row[f"Recall@{k}"] = recall_vals[k]
@@ -244,9 +274,10 @@ def analyze_sims(model_names: List[str],
 
     # Build metrics DataFrame for all models and candidate groups
     metrics_df = pd.DataFrame(metrics_rows)
+    candidate_groups = metrics_df["candidate_group"].unique()
+    make_correlation_scatter(metrics_df, out_path, candidate_groups)
 
     # Create TWO LaTeX tables: one per candidate group
-    candidate_groups = metrics_df["candidate_group"].unique()
     for candidate_group in candidate_groups:
         df_group = metrics_df[metrics_df["candidate_group"] == candidate_group].copy()
 
@@ -275,7 +306,7 @@ def analyze_sims(model_names: List[str],
 
         metrics_rows = [col for col in df_group.columns if "MRR" in col or "Recall" in col]
         for metric in metrics_rows:
-            fig = plt.figure()
+            fig = plt.figure(constrained_layout=True)
             ax = sns.barplot(df_group, x="Model", y=metric, hue="size (B of params)", legend=True)
             plt.suptitle(f"Model {metric}, colored by size", fontsize=18)
             plt.title(candidate_group, fontsize=10)
@@ -289,7 +320,7 @@ def analyze_sims(model_names: List[str],
     
 
     for candidate_group in candidate_groups:
-        plt.figure()
+        plt.figure(constrained_layout=True)
         for model_name in model_names:
             ranks = all_ranks[(model_name, candidate_group)]
             # ECDF gives Recall@k curve: P(rank <= n) vs n

@@ -17,8 +17,8 @@ def train(ds_path : str, model_name: str):
     
     # Data init
     ds = load_from_disk(ds_path)["train"]
-    ds = ds.rename_columns({"decompilation":"anchor",
-                            "source":"positive"}).remove_columns("summary") # may use this later
+    ds = ds.rename_columns({"source":"anchor",
+                            "decompilation":"positive"}).remove_columns("summary") # may use this later
     
     half_length = int(round(model.max_seq_length / 2)) # keeping the context limited for this example model
     
@@ -34,7 +34,7 @@ def train(ds_path : str, model_name: str):
     train_ds, val_ds = split_ds["train"], split_ds["test"]
 
     mini_batch_size = 1 # In nearly every case, this should always be 1
-    batch_size = 64 # This is treated a little but like gradient accumulation, a little bit differently
+    batch_size = 64 # This is treated a little bit like gradient accumulation, a little bit differently
     eval_batch_size = 4
     grad_accum_steps = 2 # TODO maybe pull this from the config automatically?
 
@@ -42,12 +42,12 @@ def train(ds_path : str, model_name: str):
     loss = CachedMultipleNegativesRankingLoss(model, mini_batch_size=mini_batch_size)
     # TODO eventually implement MatryoshkaLoss
 
-    run_name = f"mitRE_embed_{model_name}_larger_bs"
+    run_name = f"mitRE_embed_{model_name}_source_anchor"
 
     args = SentenceTransformerTrainingArguments(
         dataloader_drop_last=True,
         torch_empty_cache_steps=1, # prevents OOM
-        output_dir=f"models/{run_name}",
+        output_dir=f"models/mitRE_embed_Qwen/{run_name}",
         # Optional training parameters:
         num_train_epochs=1,
         gradient_accumulation_steps=grad_accum_steps,

@@ -22,6 +22,9 @@ def cosine_matrix_calculation(full_embeddings,
     num_data_points = full_embeddings.shape[0]
     template = torch.Tensor(np.zeros((num_data_points,num_data_points)))
     split_already = 0
+    pbar = tqdm(total = int(num_data_points / split_size) + 1 
+                if num_data_points % split_size != 0 
+                else int(num_data_points / split_size), desc="Calculating cosine distances")
     while split_already < num_data_points:
 
         partial_embeddings = full_embeddings[split_already:split_already+split_size]
@@ -29,11 +32,12 @@ def cosine_matrix_calculation(full_embeddings,
         partial_cosine_matrix = partial_embeddings @ full_embeddings.T  # [2N,2N]
         template[split_already:split_already+split_size] = partial_cosine_matrix
         split_already += split_size
+        pbar.update(1)
 
     cosine_matrix = template.cpu().numpy()
     return cosine_matrix
 
-def find_distances(data_input_dir:str, model_config_path:str):
+def find_distances(data_input_dir:str, model_config_path:str, save_euclidean:bool):
     ds = load_from_disk(data_input_dir)
     ds_length = len(ds)
     
@@ -69,8 +73,11 @@ def find_distances(data_input_dir:str, model_config_path:str):
 
         all_ids = list(range(num_ids))
 
-        for matrix, distance_type in [(cosine_matrix, "cosine"),
-                                      (euclidean_matrix, "euclidean")]:
+        distances = [(cosine_matrix, "cosine")]
+        if save_euclidean:
+            distances.append((euclidean_matrix, "euclidean"))
+            
+        for matrix, distance_type in distances:
                 
             df = DataFrame(
                 matrix,
@@ -86,9 +93,9 @@ def find_distances(data_input_dir:str, model_config_path:str):
             tqdm.pandas()
             df.to_parquet(new_file_path)
 
-
             if distance_type == "cosine": # TODO modify other to support non cosine distances
                 similarity_files.append(new_file_path)
-    
+
+    print(f"Processed cosine distances at {dict(zip(model_list, similarity_files))}")
     return model_list, similarity_files
     

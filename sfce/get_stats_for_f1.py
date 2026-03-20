@@ -597,10 +597,11 @@ def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B",
 
         # 4) Generate LaTeX table summary
         latex_table = make_latex_summary_table(results_by_model)
-        latex_file_path = f"f1_stats_models_{distance_type.lower()}.tex"
+        latex_file_path = f"{out_path}/f1_stats_models_{distance_type.lower()}.tex"
         with open(latex_file_path, "w") as f:
             f.write(latex_table)
-        print(latex_table)  # paste into your LaTeX document
+
+    print("Calibrated OOD detection")
 
 if __name__ == "__main__":
     get_stats_for_f1()

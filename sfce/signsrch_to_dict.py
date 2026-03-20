@@ -175,7 +175,7 @@ def latex_from_summary(summary,
     lines.append(r"    \hline")
 
     for model, stats in summary.items():
-        row_vals = [f"{stats[k]:.3f}" for k in cols]
+        row_vals = [f"{stats[k]:.6f}" for k in cols]
         row = " & ".join([str(model)] + row_vals) + r" \\"
         lines.append("    " + row)
 
@@ -246,6 +246,50 @@ def latex_table_normality(normality_results, caption="AP Normality tests (Shapir
             f.write(table_str)
 
     return table_str
+
+def plot_group_map_bars(
+    group_aps_exp2: dict[str, dict[str, list[float]]],
+    fig_path: str | Path,
+    figsize: tuple = (14, 6),
+):
+    """
+    Bar chart: x=algorithm group, y=MAP, hue=model.
+    group_aps_exp2: model_name -> {group_name -> [per-constant APs]}
+    """
+    records = []
+    for model_name, group_aps in group_aps_exp2.items():
+        for group_name, aps in group_aps.items():
+            records.append({
+                "model": model_name,
+                "group": group_name,
+                "MAP": float(np.mean(aps)),
+                "n_constants": len(aps),
+            })
+
+    plot_df = pd.DataFrame(records)
+    groups = plot_df["group"].unique()
+    models = plot_df["model"].unique()
+    x = np.arange(len(groups))
+    width = 0.8 / len(models)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    for i, model in enumerate(models):
+        vals = [
+            plot_df.loc[
+                (plot_df["model"] == model) & (plot_df["group"] == g), "MAP"
+            ].values[0]
+            for g in groups
+        ]
+        ax.bar(x + i * width, vals, width, label=model, alpha=0.85)
+
+    ax.set_xticks(x + width * (len(models) - 1) / 2)
+    ax.set_xticklabels(groups, rotation=45, ha="right", fontsize=8)
+    ax.set_ylabel("MAP (mean over constants in group)")
+    ax.set_title("Per-Group MAP by Model — Experiment 2")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(fig_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
 
 def plot_wilcoxon_pvalue_heatmap(paired_results,
                                  exp_name:str,
@@ -473,7 +517,7 @@ def plot_overlaid_kde(ap_dict, title:str, fig_path:str | Path, bw_method="scott"
     plt.savefig(fig_path)
     plt.close()
 
-def plot_map_histograms(AP_dictionary, bins=50):
+def plot_map_histograms(out_path, AP_dictionary, suptitle:str, extension:str,bins=50):
     plt.figure(figsize=(8, 5))
 
     # Choose a global range over all models to align bins
@@ -507,10 +551,11 @@ def plot_map_histograms(AP_dictionary, bins=50):
     plt.xlabel("MAP")
     plt.ylabel("Density")
     plt.title("MAP distributions by model")
+    plt.suptitle(suptitle)
     plt.legend()
     plt.tight_layout()
     plt.show()
-    plt.savefig("demo_sig_hist.png")
+    plt.savefig(f"{out_path}/sig_hist_{extension}.png")
 
 def get_embeddings_from_model(keys, local_model, batch_size, model_name):
     embedding_dictionary = {}
@@ -526,6 +571,35 @@ def get_embeddings_from_model(keys, local_model, batch_size, model_name):
             embedding_dictionary[k] = emb
     return embedding_dictionary
 
+def _get_embeddings_cached(keys: list, model_name: str, batch_size: int, device: str) -> dict:
+    """
+    Cached wrapper around get_embeddings_from_model.
+    Loads the model internally so joblib only needs to serialize
+    primitive arguments (keys, model_name, batch_size, device).
+    """
+    local_model = None
+    max_attempts = 5
+    for i in range(max_attempts):
+        try:
+            local_model = MODEL_CLASS_MAP[model_name](device=device, name=model_name)
+            break
+        except Exception as e:
+            sleep(5)
+            print(f"retrying... attempt {i}")
+            if i == max_attempts - 1:
+                raise ValueError(f"Model {model_name} cannot be loaded with exception: {e}")
+
+    result = get_embeddings_from_model(
+        keys=keys,
+        local_model=local_model,
+        batch_size=batch_size,
+        model_name=model_name,
+    )
+    del local_model
+    return result
+_get_embeddings_cached = memory.cache(_get_embeddings_cached)
+
+
 def get_AP(relevant, ranked):
 
     hits = np.fromiter((c in relevant for c in ranked), dtype=np.int32)
@@ -540,25 +614,75 @@ def get_AP(relevant, ranked):
         AP = (precision_at_k * hits).sum() / len(relevant)
     return AP
 
-def run_signsrch_exps(model_config_path: str):
+def get_group_MAPs(
+    df_no_algo_classes: pd.DataFrame,
+    sigs: dict[str, set],
+    reversed_sigs: dict[str, str],
+    procs: int,
+) -> dict[str, list[float]]:
+    """
+    For each algorithm group, compute the MAP across all its constants.
+    Returns a dict: group_name -> list[AP-per-constant], one entry per group.
+    The caller averages to get MAP, but the list is kept for per-group stats.
+    """
+    find_ranked = lambda x: (
+        df_no_algo_classes.loc[x]
+        .drop(index=x)
+        .sort_values(ascending=False)
+        .index
+    )
+
+    all_constants = list(df_no_algo_classes.index)
+    all_ranked = Parallel(n_jobs=procs, verbose=2)(
+        delayed(find_ranked)(c) for c in all_constants
+    )
+
+    # Group APs by algorithm name
+    group_aps: dict[str, list[float]] = {name: [] for name in sigs}
+    for constant, ranked in zip(all_constants, all_ranked):
+        algo_name = reversed_sigs[constant]
+        relevant = sigs[algo_name]
+        ap = get_AP(relevant=relevant, ranked=list(ranked))
+        group_aps[algo_name].append(ap)
+
+    return group_aps  # group -> [AP_c1, AP_c2, ...]
+
+def group_aps_to_MAPs(group_aps: dict[str, list[float]]) -> list[float]:
+    """
+    Average each group's per-constant APs into one MAP value per group.
+    Returns a flat list of MAPs, one per group — equal-weighted across groups.
+    """
+    return [float(np.mean(aps)) for aps in group_aps.values()]
+
+
+
+def run_signsrch_exps(model_config_path: str, 
+                      signsrch_path: str | None = None):
 
     # Takes one input arg: path to signsrch.sig file
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 2 and signsrch_path == None:
         print(f"Usage: {sys.argv[0]} <signsrch.sig>")
         sys.exit(1)
 
     out_path = Path(__file__).resolve().parent / Path("experiment_results")
 
-    sigs = parse_signsrch(sys.argv[1])
+    sigs = parse_signsrch(signsrch_path if signsrch_path != None else sys.argv[1])
     for name, data in sigs.items():
-        sigs[name] = set(data.split(', '))
+        split_set = set(data.split(', '))
+        sigs[name] = split_set
+
+    reversed_sigs = {}
+    for key, value in sigs.items():
+        for ind_value in value:
+            reversed_sigs[ind_value] = key
 
     AP_dict_exp1, AP_dict_exp2 = {}, {}
+    group_aps_exp2 = {}
 
     device = "cuda"
     yaml_config = yaml_safe_load(model_config_path)
     max_attempts = 5
-    batch_size = 1024 
+    batch_size = 512 
     cpu_count = os.cpu_count()
     embedding_dictionary_keys = set(sigs.keys())
     for _, data in sigs.items():
@@ -566,7 +690,7 @@ def run_signsrch_exps(model_config_path: str):
             embedding_dictionary_keys.add(d)
 
     for model_name in yaml_config["models"]:
-        embedding_dictionary = {}
+        
         local_model = None
         for i in range(max_attempts):
             try:
@@ -579,13 +703,18 @@ def run_signsrch_exps(model_config_path: str):
                     raise(ValueError(f"Model {model_name} cannot be loaded with exception: {e}"))
 
         keys = list(embedding_dictionary_keys)
-        embedding_dictionary = get_embeddings_from_model(keys = keys,
-                                                         local_model=local_model,
-                                                         batch_size=batch_size,
-                                                         model_name=model_name)
+        embedding_dictionary = _get_embeddings_cached(
+            keys=keys,
+            model_name=model_name,
+            batch_size=batch_size,
+            device=device,
+        )
+        del(local_model)   
         
         embeddings = np.array(list(embedding_dictionary.values()))
-        cosine_matrix = cosine_matrix_calculation(full_embeddings=torch.Tensor(embeddings), device=device)
+        cosine_matrix = cosine_matrix_calculation(full_embeddings=torch.Tensor(embeddings), 
+                                                  device=device, 
+                                                  split_size=4096)
         df = pd.DataFrame(cosine_matrix, 
                           index=embedding_dictionary.keys(), 
                           columns=embedding_dictionary.keys())
@@ -597,7 +726,8 @@ def run_signsrch_exps(model_config_path: str):
         # Experiment 1: for each algorithm, rank constants
 
         procs = int(cpu_count * 7 / 8)
-
+        APs = []
+        
         sorted_keys = sorted(sigs.keys())
         
         find_constants_index = lambda x: (df.loc[x]
@@ -607,7 +737,7 @@ def run_signsrch_exps(model_config_path: str):
         
         constants_ranked_by_algorithm = Parallel(n_jobs=procs, verbose=2)(delayed(find_constants_index)(i) for i in sorted_keys)
         
-        APs = []
+        
         for i, sig in enumerate(tqdm(sorted_keys, 
                                      desc=f"Processing signatures during Experiment 1 for {model_name}")):
             
@@ -620,32 +750,24 @@ def run_signsrch_exps(model_config_path: str):
         AP_dict_exp1[model_name] = APs
 
         # Experiment 2: Rank constants in same "algorithm class"
-        df_no_algo_classes = df.drop(columns=list(sigs.keys()),
-                                     index=list(sigs.keys()))  
-        
-        find_constants_in_algo_class_index = lambda x: (df_no_algo_classes.loc[x]
-            .drop(index=x)
-            .sort_values(ascending=False)
-            .index)
+        APs = []
+        df_no_algo_classes = df.drop(
+            columns=list(sigs.keys()), index=list(sigs.keys())
+        )
 
-        reversed_sigs = {value: key for key, value in sigs.items()}
-        for i, constant in enumerate(tqdm(find_constants_in_algo_class_index.columns, 
-                                          desc=f"Processing signatures during Experiment 2 for {model_name}")):
-            
-            algo_name = reversed_sigs[constant]
-            relevant = sigs[algo_name]
-            ranked = list(find_constants_in_algo_class_index[i])  # ranked constant ids/strings
+        group_aps_exp2[model_name] = get_group_MAPs(
+            df_no_algo_classes=df_no_algo_classes,
+            sigs=sigs,
+            reversed_sigs=reversed_sigs,
+            procs=procs,
+        )
+        # Flat list of per-group MAPs — one value per group, equal weight
+        AP_dict_exp2[model_name] = group_aps_to_MAPs(group_aps_exp2[model_name])
 
-            AP = get_AP(relevant=relevant, ranked=ranked)
-            APs.append(AP)
-            
-        AP_dict_exp2[model_name] = APs
-
-        del(local_model)   
 
     for AP_dict, exp_name, extension_name in ([AP_dict_exp1, "Given Group name, finding relevant constants", "g_2_c"], 
                               [AP_dict_exp2, "Given Constant, Finding Constants in Same Group", "c_2_c"]):
-        plot_map_histograms(AP_dict)
+        plot_map_histograms(out_path,AP_dict, suptitle=exp_name, extension=extension_name)
         alpha = 0.05
         descriptives = summarize_descriptives(AP_dict) 
         pprint(descriptives)
@@ -695,6 +817,12 @@ def run_signsrch_exps(model_config_path: str):
         plot_overlaid_kde(AP_dict, 
                           title=f"KDE of AP Distributions by Model, {exp_name}",
                           fig_path=out_path / Path(f"overlaid_kde_{extension_name}.png"))
+
+    plot_group_map_bars(
+        group_aps_exp2,
+        fig_path=out_path / "group_map_bars_c_2_c.png",
+    )
+    print(f"Completed Signsrch Experiments")
 
 if __name__ == "__main__":
     run_signsrch_exps(model_config_path = "../config/experiment_config.yaml")

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from scipy import stats
 
 
+
 def scatter_with_fit(
     x,
     y,
