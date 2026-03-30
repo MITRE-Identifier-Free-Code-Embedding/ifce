@@ -30,6 +30,8 @@ def train(ds_path : str, model_name: str):
     ds = ds.map(lambda x: {"anchor": encode_decode(x["anchor"]),
                             "positive": encode_decode(x["positive"])
                            }) # I'm not totally convinced the data is getting truncated, so we do it manually.
+
+    ds = ds.select_columns(["anchor", "positive"])
     split_ds = ds.train_test_split(test_size=0.01)
     train_ds, val_ds = split_ds["train"], split_ds["test"]
 

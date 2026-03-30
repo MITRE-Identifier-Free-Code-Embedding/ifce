@@ -9,6 +9,7 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 import torch
+import pickle
 import pathlib
 from find_distances import cosine_matrix_calculation
 from joblib import Parallel, delayed
@@ -250,7 +251,7 @@ def latex_table_normality(normality_results, caption="AP Normality tests (Shapir
 def plot_group_map_bars(
     group_aps_exp2: dict[str, dict[str, list[float]]],
     fig_path: str | Path,
-    figsize: tuple = (14, 6),
+    figsize: tuple = (28, 12),
 ):
     """
     Bar chart: x=algorithm group, y=MAP, hue=model.
@@ -298,7 +299,7 @@ def plot_wilcoxon_pvalue_heatmap(paired_results,
                                  cmap="viridis",
                                  file_path=None,
                                  annotate=True,
-                                 figsize=(6, 5)):
+                                 figsize=(12, 10)):
     """
     Create a heatmap of pairwise Wilcoxon p-values from paired_results.
 
@@ -377,7 +378,7 @@ def plot_wilcoxon_pvalue_heatmap(paired_results,
                         color="white" if masked_data[i, j] > np.nanmax(masked_data) / 2 else "black",
                         fontsize=8)
 
-    title = "Pairwise Wilcoxon p-values, {exp_name}"
+    title = f"Pairwise Wilcoxon p-values, {exp_name}"
     if log10_transform:
         title += " (darker = more significant)"
     ax.set_title(title)
@@ -450,20 +451,11 @@ def paired_tests(ap_dict, alpha=0.05):
         x = np.asarray(ap_dict[m1])
         y = np.asarray(ap_dict[m2])
 
-        # Commented: data doesn't follow normality
-        # Paired t-test (assumes normality of differences)
-        # t_stat, t_p = stats.ttest_rel(x, y, nan_policy="omit")
-
         # Wilcoxon signed-rank test (nonparametric, paired)
         # Note: requires no zero differences or handles them specially depending on SciPy version.
         w_stat, w_p = stats.wilcoxon(x, y, zero_method="wilcox", correction=False, alternative="greater")
 
         results[(m1, m2)] = {
-            #"paired_t_test": {
-            #    "statistic": float(t_stat),
-            #    "p_value": float(t_p),
-            #    "significant_at_alpha": bool(t_p < alpha),
-            #},
             "wilcoxon": {
                 "statistic": float(w_stat),
                 "p_value": float(w_p),
@@ -476,7 +468,7 @@ def plot_overlaid_histograms(ap_dict, bins=20, density=False, alpha=0.4):
     """
     Plot overlaid histograms for each model on the same axes.
     """
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(16, 10))
     for model, ap_list in ap_dict.items():
         plt.hist(
             ap_list,
@@ -502,7 +494,7 @@ def plot_overlaid_kde(ap_dict, title:str, fig_path:str | Path, bw_method="scott"
     """
     from scipy.stats import gaussian_kde
 
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(16, 10))
     xs = np.linspace(0.0, 1.0, 200)
     for model, ap_list in ap_dict.items():
         arr = np.asarray(ap_list)
@@ -518,7 +510,7 @@ def plot_overlaid_kde(ap_dict, title:str, fig_path:str | Path, bw_method="scott"
     plt.close()
 
 def plot_map_histograms(out_path, AP_dictionary, suptitle:str, extension:str,bins=50):
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(16, 10))
 
     # Choose a global range over all models to align bins
     all_values = np.concatenate([np.array(v) for v in AP_dictionary.values()])
@@ -577,17 +569,22 @@ def _get_embeddings_cached(keys: list, model_name: str, batch_size: int, device:
     Loads the model internally so joblib only needs to serialize
     primitive arguments (keys, model_name, batch_size, device).
     """
-    local_model = None
+    sleep(5)
     max_attempts = 5
+    local_model = None
     for i in range(max_attempts):
         try:
-            local_model = MODEL_CLASS_MAP[model_name](device=device, name=model_name)
+            if "quant" in model_name:
+                local_model = MODEL_CLASS_MAP[model_name](device=device, name=model_name, quantization="fp8")
+            else:
+                local_model = MODEL_CLASS_MAP[model_name](device=device, name=model_name)
             break
         except Exception as e:
-            sleep(5)
             print(f"retrying... attempt {i}")
             if i == max_attempts - 1:
-                raise ValueError(f"Model {model_name} cannot be loaded with exception: {e}")
+                raise(ValueError(f"Model {model_name} cannot be loaded with exception: {e}"))
+        sleep(5)
+    sleep(5)
 
     result = get_embeddings_from_model(
         keys=keys,
@@ -595,7 +592,7 @@ def _get_embeddings_cached(keys: list, model_name: str, batch_size: int, device:
         batch_size=batch_size,
         model_name=model_name,
     )
-    del local_model
+    del(local_model)
     return result
 _get_embeddings_cached = memory.cache(_get_embeddings_cached)
 
@@ -625,12 +622,13 @@ def get_group_MAPs(
     Returns a dict: group_name -> list[AP-per-constant], one entry per group.
     The caller averages to get MAP, but the list is kept for per-group stats.
     """
-    find_ranked = lambda x: (
+    def find_ranked(x, df_no_algo_classes=df_no_algo_classes):
+        return (
         df_no_algo_classes.loc[x]
         .drop(index=x)
         .sort_values(ascending=False)
         .index
-    )
+        )
 
     all_constants = list(df_no_algo_classes.index)
     all_ranked = Parallel(n_jobs=procs, verbose=2)(
@@ -639,13 +637,63 @@ def get_group_MAPs(
 
     # Group APs by algorithm name
     group_aps: dict[str, list[float]] = {name: [] for name in sigs}
-    for constant, ranked in zip(all_constants, all_ranked):
-        algo_name = reversed_sigs[constant]
-        relevant = sigs[algo_name]
-        ap = get_AP(relevant=relevant, ranked=list(ranked))
-        group_aps[algo_name].append(ap)
+    for _, (constant, ranked) in enumerate(tqdm(zip(all_constants, all_ranked), 
+                                            desc="Finding group APs")):
+        algo_names = reversed_sigs[constant]
+        for algo_name in algo_names:
+            relevant = sigs[algo_name]
+            relevant.remove(constant)
+            ap = get_AP(relevant=relevant, ranked=list(ranked))
+            group_aps[algo_name].append(ap)
 
     return group_aps  # group -> [AP_c1, AP_c2, ...]
+
+def get_AP_from_indices(relevant_idx: np.ndarray, ranked_idx: np.ndarray) -> float:
+    if relevant_idx.size == 0:
+        return 0.0
+
+    is_rel = np.isin(ranked_idx, relevant_idx, assume_unique=False).astype(np.int8)
+    R = is_rel.sum()
+    if R == 0:
+        return 0.0
+
+    cum_hits = np.cumsum(is_rel)
+    ranks = np.arange(1, len(is_rel) + 1, dtype=np.float32)
+    precision_at_k = cum_hits / ranks
+    return float((precision_at_k * is_rel).sum() / relevant_idx.size)
+
+
+def get_group_MAPs_precomputed(
+    row_rank_ids: np.ndarray,
+    all_constants: list[str],
+    sigs: dict[str, set[str]],
+    reversed_sigs: dict[str, list[str]],
+) -> dict[str, list[float]]:
+    const_to_id = {c: i for i, c in enumerate(all_constants)}
+
+    # Precompute full relevant indices per algo (including the algo's own constant)
+    algo_to_rel_idx_full: dict[str, np.ndarray] = {}
+    for algo_name, consts in sigs.items():
+        algo_to_rel_idx_full[algo_name] = np.fromiter(
+            (const_to_id[c] for c in consts if c in const_to_id),
+            dtype=np.int64,
+        )
+
+    group_aps: dict[str, list[float]] = {name: [] for name in sigs}
+
+    for i, constant in enumerate(all_constants):
+        ranked_ids = row_rank_ids[i]
+        const_id = i  # same as const_to_id[constant]
+
+        for algo_name in reversed_sigs[constant]:
+            full_rel = algo_to_rel_idx_full[algo_name]
+            # Exclude the query constant from relevant set
+            rel_idx = full_rel[full_rel != const_id]
+
+            ap = get_AP_from_indices(rel_idx, ranked_ids)
+            group_aps[algo_name].append(ap)
+
+    return group_aps
 
 def group_aps_to_MAPs(group_aps: dict[str, list[float]]) -> list[float]:
     """
@@ -654,142 +702,33 @@ def group_aps_to_MAPs(group_aps: dict[str, list[float]]) -> list[float]:
     """
     return [float(np.mean(aps)) for aps in group_aps.values()]
 
-
-
-def run_signsrch_exps(model_config_path: str, 
-                      signsrch_path: str | None = None):
-
-    # Takes one input arg: path to signsrch.sig file
-    if len(sys.argv) < 2 and signsrch_path == None:
-        print(f"Usage: {sys.argv[0]} <signsrch.sig>")
-        sys.exit(1)
-
-    out_path = Path(__file__).resolve().parent / Path("experiment_results")
-
-    sigs = parse_signsrch(signsrch_path if signsrch_path != None else sys.argv[1])
-    for name, data in sigs.items():
-        split_set = set(data.split(', '))
-        sigs[name] = split_set
-
-    reversed_sigs = {}
-    for key, value in sigs.items():
-        for ind_value in value:
-            reversed_sigs[ind_value] = key
-
-    AP_dict_exp1, AP_dict_exp2 = {}, {}
-    group_aps_exp2 = {}
-
-    device = "cuda"
-    yaml_config = yaml_safe_load(model_config_path)
-    max_attempts = 5
-    batch_size = 512 
-    cpu_count = os.cpu_count()
-    embedding_dictionary_keys = set(sigs.keys())
-    for _, data in sigs.items():
-        for d in data:
-            embedding_dictionary_keys.add(d)
-
-    for model_name in yaml_config["models"]:
-        
-        local_model = None
-        for i in range(max_attempts):
-            try:
-                local_model = MODEL_CLASS_MAP[model_name](device=device, name=model_name)
-                break
-            except Exception as e:
-                sleep(5)
-                print(f"retrying... attempt {i}")
-                if i == max_attempts - 1:
-                    raise(ValueError(f"Model {model_name} cannot be loaded with exception: {e}"))
-
-        keys = list(embedding_dictionary_keys)
-        embedding_dictionary = _get_embeddings_cached(
-            keys=keys,
-            model_name=model_name,
-            batch_size=batch_size,
-            device=device,
-        )
-        del(local_model)   
-        
-        embeddings = np.array(list(embedding_dictionary.values()))
-        cosine_matrix = cosine_matrix_calculation(full_embeddings=torch.Tensor(embeddings), 
-                                                  device=device, 
-                                                  split_size=4096)
-        df = pd.DataFrame(cosine_matrix, 
-                          index=embedding_dictionary.keys(), 
-                          columns=embedding_dictionary.keys())
-        df.attrs["model"] = model_name
-        df.attrs["embedding_size"] = embeddings.shape[1] 
-        new_file_path = pathlib.Path(__file__).parent.parent.resolve() / "data" / f"signsrch_cosine_{model_name}.parquet"
-        # df.to_parquet(new_file_path)
-
-        # Experiment 1: for each algorithm, rank constants
-
-        procs = int(cpu_count * 7 / 8)
-        APs = []
-        
-        sorted_keys = sorted(sigs.keys())
-        
-        find_constants_index = lambda x: (df.loc[x]
-            .drop(index=sorted_keys)
-            .sort_values(ascending=False)
-            .index)
-        
-        constants_ranked_by_algorithm = Parallel(n_jobs=procs, verbose=2)(delayed(find_constants_index)(i) for i in sorted_keys)
-        
-        
-        for i, sig in enumerate(tqdm(sorted_keys, 
-                                     desc=f"Processing signatures during Experiment 1 for {model_name}")):
+def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
             
-            relevant = sigs[sig]
-            ranked = list(constants_ranked_by_algorithm[i])  # ranked constant ids/strings
-
-            AP = get_AP(relevant=relevant, ranked=ranked)
-            APs.append(AP)
-            
-        AP_dict_exp1[model_name] = APs
-
-        # Experiment 2: Rank constants in same "algorithm class"
-        APs = []
-        df_no_algo_classes = df.drop(
-            columns=list(sigs.keys()), index=list(sigs.keys())
-        )
-
-        group_aps_exp2[model_name] = get_group_MAPs(
-            df_no_algo_classes=df_no_algo_classes,
-            sigs=sigs,
-            reversed_sigs=reversed_sigs,
-            procs=procs,
-        )
-        # Flat list of per-group MAPs — one value per group, equal weight
-        AP_dict_exp2[model_name] = group_aps_to_MAPs(group_aps_exp2[model_name])
-
-
-    for AP_dict, exp_name, extension_name in ([AP_dict_exp1, "Given Group name, finding relevant constants", "g_2_c"], 
-                              [AP_dict_exp2, "Given Constant, Finding Constants in Same Group", "c_2_c"]):
+    for AP_dict, exp_name, extension_name, map_or_ap in ([AP_dict_exp1, "Given Group name, finding relevant constants", "g_2_c", "AP"], 
+                            [AP_dict_exp2, "Given Constant, Finding Constants in Same Group", "c_2_c", "MAP"]):
         plot_map_histograms(out_path,AP_dict, suptitle=exp_name, extension=extension_name)
         alpha = 0.05
         descriptives = summarize_descriptives(AP_dict) 
         pprint(descriptives)
         latex_from_summary(summary=descriptives, 
-                           filepath = out_path / Path(f"distributions_summary_{extension_name}.tex"),
-                           caption=f"Summary Statistics for AP by model, {exp_name}",
-                           label="tab:ap_statistics")
+                        filepath = out_path / Path(f"distributions_summary_{extension_name}.tex"),
+                        caption=f"Summary Statistics for {map_or_ap} by model, {exp_name}",
+                        label=f"tab:{map_or_ap.lower()}_statistics")
 
 
         normality = test_normality(AP_dict, alpha=alpha)
         pprint(normality)
         latex_table_normality(normality_results=normality, 
-                            caption=f"Shapiro–Wilk normality tests for AP distributions, {exp_name}",
-                            label="tab:ap_normality",
+                            caption=f"Shapiro–Wilk normality tests for {map_or_ap} distributions, {exp_name}",
+                            label=f"tab:{map_or_ap.lower()}_normality",
                             file_path = out_path / Path(f"sig_normalit_{extension_name}.tex"))
         paired_results = paired_tests(AP_dict, alpha=alpha)   # if APs are aligned
         pprint(paired_results)
 
         tex_paired = latex_table_paired_wilcoxon(
         paired_results,
-        caption=f"Pairwise Wilcoxon signed-rank tests for AP by model, {exp_name}",
-        label="tab:ap_paired_wilcoxon",
+        caption=f"Pairwise Wilcoxon signed-rank tests for {map_or_ap} by model, {exp_name}",
+        label=f"tab:{map_or_ap.lower()}_paired_wilcoxon",
         file_path=out_path / Path(f"ap_paired_wilcoxon_{extension_name}.tex"),
         )
         # Plain p-value heatmap
@@ -815,13 +754,141 @@ def run_signsrch_exps(model_config_path: str,
         # plot_overlaid_histograms(AP_dict, bins=50, density=True) # This hasn't been useful and is ugly
 
         plot_overlaid_kde(AP_dict, 
-                          title=f"KDE of AP Distributions by Model, {exp_name}",
-                          fig_path=out_path / Path(f"overlaid_kde_{extension_name}.png"))
+                        title=f"KDE of {map_or_ap} Distributions by Model, {exp_name}",
+                        fig_path=out_path / Path(f"overlaid_kde_{extension_name}.png"))
 
     plot_group_map_bars(
         group_aps_exp2,
         fig_path=out_path / "group_map_bars_c_2_c.png",
     )
+
+
+def run_signsrch_exps(model_config_path: str, 
+                      signsrch_path: str | None = None):
+
+    # Takes one input arg: path to signsrch.sig file
+    if len(sys.argv) < 2 and signsrch_path == None:
+        print(f"Usage: {sys.argv[0]} <signsrch.sig>")
+        sys.exit(1)
+
+    out_path = Path(__file__).resolve().parent / Path("experiment_results")
+
+    sigs = parse_signsrch(signsrch_path if signsrch_path != None else sys.argv[1])
+    for name, data in sigs.items():
+        split_set = set(data.split(', ')) # TODO for temporary testing, remove eventually
+        sigs[name] = split_set
+
+    reversed_sigs = {}
+    for key, value in sigs.items():
+        for ind_value in value:
+            if ind_value in reversed_sigs:
+                reversed_sigs[ind_value].append(key)
+            else:
+                reversed_sigs[ind_value] = [key]
+
+    AP_dict_exp1, AP_dict_exp2 = {}, {}
+    group_aps_exp2 = {}
+
+    device = "cuda"
+    yaml_config = yaml_safe_load(model_config_path)
+    max_attempts = 5
+    batch_size = 512 
+    cpu_count = os.cpu_count()
+    embedding_dictionary_keys = set(sigs.keys())
+    for _, data in sigs.items():
+        for d in data:
+            embedding_dictionary_keys.add(d)
+
+    for model_name in yaml_config["models"]:
+        
+        keys = list(embedding_dictionary_keys)
+        embedding_dictionary = _get_embeddings_cached(
+            keys=keys,
+            model_name=model_name,
+            batch_size=batch_size,
+            device=device,
+        )
+          
+        
+        embeddings = np.array(list(embedding_dictionary.values()))
+        cosine_matrix = cosine_matrix_calculation(full_embeddings=torch.Tensor(embeddings), 
+                                                  device=device, 
+                                                  split_size=4096)
+        df = pd.DataFrame(cosine_matrix, 
+                          index=embedding_dictionary.keys(), 
+                          columns=embedding_dictionary.keys())
+        df.attrs["model"] = model_name
+        df.attrs["embedding_size"] = embeddings.shape[1] 
+        new_file_path = pathlib.Path(__file__).parent.parent.resolve() / "data" / f"signsrch_cosine_{model_name}.parquet"
+        # df.to_parquet(new_file_path)
+
+        # Experiment 1: for each algorithm, rank constants
+
+        procs = int(cpu_count * 7 / 8)
+        APs = []
+        
+        sorted_keys = sorted(sigs.keys())
+        
+        def find_constants_index(x, df=df,sorted_keys=sorted_keys):
+            return (df.loc[x]
+            .drop(index=sorted_keys)
+            .sort_values(ascending=False)
+            .index)
+        
+        constants_ranked_by_algorithm = Parallel(n_jobs=procs, verbose=2)(delayed(find_constants_index)(i) for i in sorted_keys)
+        
+        
+        for i, sig in enumerate(tqdm(sorted_keys, 
+                                     desc=f"Processing signatures during Experiment 1 for {model_name}")):
+            
+            relevant = sigs[sig]
+            ranked = list(constants_ranked_by_algorithm[i])  # ranked constant ids/strings
+
+            AP = get_AP(relevant=relevant, ranked=ranked)
+            APs.append(AP)
+            
+        AP_dict_exp1[model_name] = APs
+
+        # Experiment 2: Rank constants in same "algorithm class"
+        APs = []
+        df_no_algo_classes = df.drop(
+            columns=list(sigs.keys()), index=list(sigs.keys())
+        )
+        values = df_no_algo_classes.copy().to_numpy().copy()
+        N = values.shape[0]
+
+        # Mask out diagonal so it never appears in rankings
+        np.fill_diagonal(values, -np.inf)
+
+        # argsort descending per row
+        # argsort is ascending, so negate
+        row_rank_ids = np.argsort(-values, axis=1, stable=True)      # shape (N, N)
+
+        # Map row index -> constant, and constant -> row index
+        all_constants = df_no_algo_classes.index.to_list()
+
+        group_aps_exp2[model_name] = get_group_MAPs_precomputed(row_rank_ids,
+                                                                all_constants,
+                                                                sigs,
+                                                                reversed_sigs)
+        
+        #group_aps_exp2[model_name] = get_group_MAPs(
+        #    df_no_algo_classes=df_no_algo_classes,
+        #    sigs=sigs,
+        #    reversed_sigs=reversed_sigs,
+        #    procs=procs,
+        #)
+
+        # Flat list of per-group MAPs — one value per group, equal weight
+        AP_dict_exp2[model_name] = group_aps_to_MAPs(group_aps_exp2[model_name])
+        
+    with open('group_aps_exp2.pkl', 'wb') as file:
+        pickle.dump(group_aps_exp2, file)
+    with open('AP_dict_exps.pkl', 'wb') as file:
+        pickle.dump([AP_dict_exp1, AP_dict_exp2], file)
+
+    gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path)
+
     print(f"Completed Signsrch Experiments")
 
 if __name__ == "__main__":

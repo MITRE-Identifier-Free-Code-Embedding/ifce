@@ -18,14 +18,18 @@ Evaluation is accomplished through the following benchmarks:
 Software
 * Consolidate similar functionality across files
 * Segment processing from visualization in some files
-* Observe Quantization effects
-* prevent algorithms with one constant from being evaluated
 
+* add total function count to diagrams / graphs
+* change 
+    coloration of tsne 
+    figure size
+* add error bars
+* identify groups that models perform well on in signsrch experiments
+* Identify functions that models perform well on
 
 Discussions
 * Validate signsrch experiments
 * Work on slide materials
-* For signsrch exp 2, some algorithm groups have more constants than others. This makes them generate more AP scores and weights summaries stats towards their performance v. equal weighting. In reality these should be aggregations of MAPs?
 
 
 Open questions

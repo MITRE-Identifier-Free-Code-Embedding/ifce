@@ -361,6 +361,7 @@ class OnlineCustomEmbeddingModel(OnlineQwen3EmbeddingModel):
         max_model_len: int | None = None,
         **kwargs,
     ):
+        self.quantization = kwargs["quantization"] if "quantization" in kwargs else None
         super().__init__(name=name)
         self.former_name = "Qwen/Qwen3-Embedding-0.6B"
     def _start_server(self, device, gpu_memory_utilization, max_model_len, **kwargs):
@@ -370,8 +371,9 @@ class OnlineCustomEmbeddingModel(OnlineQwen3EmbeddingModel):
             "--port", str(self.port),
             "--gpu-memory-utilization", str(gpu_memory_utilization),
         ]
-        if "quantization" in kwargs:
-            cmd.extend(["-q", kwargs["quantization"]])
+        if self.quantization:
+            cmd.extend(["-q", self.quantization])
+            print(f"Quantizing as {self.quantization}")
         if max_model_len is not None:
             cmd += ["--max-model-len", str(max_model_len)]
         for key, value in kwargs.items():
@@ -546,7 +548,8 @@ MODEL_SIZE_MAP = {"bge-small-en-v1.5": 0.033,
                     "SFR-Embedding-Mistral": 7,
                     "nomic-embed-code": 7,
                     "jina-embeddings-v2-base-code": 0.16,
-                    "codesage-large-v2": 1.3
+                    "codesage-large-v2": 1.3,
+                    "BinSeek-Embedding":0.3
                     }
 
 for entry in Path(Path(THIS_FILES_DIRECTORY) / "models").iterdir():
@@ -554,4 +557,4 @@ for entry in Path(Path(THIS_FILES_DIRECTORY) / "models").iterdir():
         MODEL_CLASS_MAP.update({entry.name:OnlineCustomEmbeddingModel})
         MODEL_SIZE_MAP.update({entry.name:0.6})
 
-assert(set(MODEL_CLASS_MAP.keys()) == set(MODEL_CLASS_MAP.keys()))
+assert(set(MODEL_CLASS_MAP.keys()) == set(MODEL_SIZE_MAP.keys()))

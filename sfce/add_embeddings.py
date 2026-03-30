@@ -185,22 +185,11 @@ def create_embeddings(data_directory: str,
     ds = load_from_disk(data_directory)
     batched_ds = ds.batch(batch_size = batch_size)
     
-    
-    """
-    model_dictionary = {}
-    for model in yaml_config["models"]:
-        model_dictionary[model] = MODEL_CLASS_MAP[model](device=device, name=model)
-        breakpoint()
-        if hasattr(model_dictionary[model].model, "sleep"): # VLLM
-            model_dictionary[model].model.sleep(level=2)
-        else:
-            model_dictionary.pop(model)
-    """
     local_model = None
     for model in yaml_config["models"]:
         sleep(5)
         if "quant" in model:
-            local_model = MODEL_CLASS_MAP[model](device=device, name=model, quantization="bitsandbytes")
+            local_model = MODEL_CLASS_MAP[model](device=device, name=model, quantization="fp8")
         else:
             local_model = MODEL_CLASS_MAP[model](device=device, name=model)
         sleep(5)
@@ -282,7 +271,7 @@ def create_embeddings(data_directory: str,
         print(f"No cache found for {model} — computing embeddings...")
         sleep(5)
         if "quant" in model:
-            local_model = MODEL_CLASS_MAP[model](device=device, name=model, quantization="bitsandbytes")
+            local_model = MODEL_CLASS_MAP[model](device=device, name=model, quantization="fp8")
         else:
             local_model = MODEL_CLASS_MAP[model](device=device, name=model)
         sleep(5)

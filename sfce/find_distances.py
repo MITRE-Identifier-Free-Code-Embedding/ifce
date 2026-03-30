@@ -8,6 +8,8 @@ import torch
 import torch.nn.functional as F
 import pathlib
 from sklearn.metrics import pairwise_distances
+import os
+from torch.utils.data import DataLoader
 
 def cosine_matrix_calculation(full_embeddings, 
                               device: str, 
@@ -37,7 +39,7 @@ def cosine_matrix_calculation(full_embeddings,
     cosine_matrix = template.cpu().numpy()
     return cosine_matrix
 
-def find_distances(data_input_dir:str, model_config_path:str, save_euclidean:bool):
+def find_distances(data_input_dir:str, model_config_path:str, save_euclidean:bool,caching:bool=True):
     ds = load_from_disk(data_input_dir)
     ds_length = len(ds)
     
@@ -47,6 +49,11 @@ def find_distances(data_input_dir:str, model_config_path:str, save_euclidean:boo
     similarity_files = []
 
     for model in model_list:
+        
+        new_file_path = pathlib.Path(__file__).parent.parent.resolve() / "data" / f"cosine_{model}.parquet"
+        if new_file_path.is_file() and caching == True and save_euclidean==False: # caching
+            similarity_files.append(new_file_path)
+            continue
         # Figure out embedding dimension from the first row
         ex0 = ds[0]
         d_source = len(ex0[f"{model}-embedding-source"])
@@ -56,14 +63,22 @@ def find_distances(data_input_dir:str, model_config_path:str, save_euclidean:boo
 
         num_ids = ds_length * 2
         # full_embeddings[id] will contain the embedding for that id
+        
+        def _collate_fn(batch):
+            src_ids  = torch.tensor([ex["source_id"] for ex in batch])
+            dec_ids  = torch.tensor([ex["decompilation_id"] for ex in batch])
+            src_embs = torch.stack([torch.tensor(ex[f"{model}-embedding-source"]) for ex in batch])
+            dec_embs = torch.stack([torch.tensor(ex[f"{model}-embedding-decompilation"]) for ex in batch])
+            return src_ids, dec_ids, src_embs, dec_embs
+
+        loader = DataLoader(ds, batch_size=256, num_workers=8,
+                            collate_fn=_collate_fn, pin_memory=False)
+
         full_embeddings = torch.empty((num_ids, dim), dtype=torch.float32)
 
-        # Fill the embedding matrix once
-        for ex in tqdm(ds, desc="Loading embeddings"):
-            src_id = ex["source_id"]
-            dec_id = ex["decompilation_id"]
-            full_embeddings[src_id] = torch.tensor(ex[f"{model}-embedding-source"])
-            full_embeddings[dec_id] = torch.tensor(ex[f"{model}-embedding-decompilation"])
+        for src_ids, dec_ids, src_embs, dec_embs in tqdm(loader, desc="Loading embeddings"):
+            full_embeddings[src_ids] = src_embs
+            full_embeddings[dec_ids] = dec_embs
 
         euclidean_matrix = 1 / pairwise_distances(full_embeddings, 
                                               n_jobs=-1) # This will contain infs
@@ -89,7 +104,6 @@ def find_distances(data_input_dir:str, model_config_path:str, save_euclidean:boo
             df.attrs["embedding_size"] = full_embeddings.shape[1] # This should be an embedding size
 
             # Save / use df as needed
-            new_file_path = pathlib.Path(__file__).parent.parent.resolve() / "data" / f"{distance_type}_{model}.parquet"
             tqdm.pandas()
             df.to_parquet(new_file_path)
 

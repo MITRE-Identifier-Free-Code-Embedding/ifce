@@ -57,12 +57,9 @@ if __name__ == "__main__":
     #processed_embeddings_ds = create_embeddings(data_directory=args.data_dir_path, 
     #                  model_config_path=args.yaml_file_path,
     #                   batch_size=args.batch_size)
-    processed_embeddings_ds = "decompiled_summaries_TEST_copy_idd_embedded/"
+    # processed_embeddings_ds = "decompiled_summaries_TEST_copy_idd_embedded/"
 
-    run_signsrch_exps(model_config_path=args.yaml_file_path, 
-                      signsrch_path=args.signsrch_path)
-
-    # processed_embeddings_ds = "../data/decompiled_summaries_TEST_copy_idd_embedded/"
+    processed_embeddings_ds = "../data/decompiled_summaries_TEST_copy_idd_embedded/"
     model_names, sim_files = find_distances(data_input_dir=processed_embeddings_ds, 
                                             model_config_path=args.yaml_file_path,
                                             save_euclidean=args.ood_test)
@@ -85,6 +82,10 @@ if __name__ == "__main__":
                         similarity_files=sim_files_doubled)
     
     analyze_sims(model_names=model_names, cosine_parquet_paths=sim_files, data_input_dir= processed_embeddings_ds)
+    run_signsrch_exps(model_config_path=args.yaml_file_path, 
+                      signsrch_path=args.signsrch_path)
+    
+    
     
     
     print("Completed search metric analysis.")

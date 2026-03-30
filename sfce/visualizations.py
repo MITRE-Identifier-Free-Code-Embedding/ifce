@@ -36,8 +36,6 @@ def scatter_with_fit(
 
     if x.shape != y.shape:
         raise ValueError("x and y must have the same shape")
-    if np.any(x <= 0) or np.any(y <= 0):
-        raise ValueError("All x and y values must be positive for log scaling")
 
     # Spearman correlation (rank-based, robust to outliers)
     res = stats.spearmanr(x, y)
@@ -46,7 +44,7 @@ def scatter_with_fit(
 
     sns.set_theme(style="whitegrid", context="talk")
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(16,10))
 
     # Log-scale scatter
     sns.scatterplot(
@@ -145,7 +143,7 @@ def histogram(
 
     sns.set_theme(style="whitegrid", context="talk")
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(16,10))
 
     sns.histplot(
         group_a,
@@ -227,7 +225,7 @@ def log_histogram(data,
     counts_a, _ = np.histogram(group_a, bins=bins)
     counts_b, _ = np.histogram(group_b, bins=bins)
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(16,10))
 
     ax.bar(centers, counts_a, width=widths * 0.9, bottom=0,
            color="#f0e929", alpha=0.6, linewidth=0.8, label=label_a)
@@ -295,7 +293,7 @@ def boxplot(
 
     sns.set_theme(style="whitegrid", context="talk")
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(16,10))
 
     sns.boxplot(
         data=df,
@@ -394,7 +392,7 @@ def trimmed_quantile_boxplot(
 
     sns.set_theme(style="whitegrid", context="talk")
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(16,10))
 
     sns.boxplot(
         data=df,

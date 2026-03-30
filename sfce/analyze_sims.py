@@ -3,6 +3,7 @@ import numpy as np
 from tqdm.auto import tqdm
 from joblib import Parallel, delayed
 import os
+import pickle
 import seaborn as sns
 import matplotlib.pyplot as plt
 from models import MODEL_CLASS_MAP, MODEL_SIZE_MAP
@@ -10,6 +11,8 @@ from pathlib import Path
 from typing import List
 from datasets import load_from_disk
 from visualizations import log_histogram, trimmed_quantile_boxplot, scatter_with_fit
+
+K_FOR_RECALLS = [1, 3, 5, 10]
 
 def recall_at_k(rank_series: np.ndarray, k: int):
     # Recall@k: fraction of items whose rank is <= k
@@ -32,7 +35,7 @@ def MRR_at_k(rank_series: np.ndarray, k: int):
     return np.mean(template)
 
 def get_function_lengths(dataset):
-
+    '''
     template = np.zeros(len(dataset) * 2)
     for ex in tqdm(dataset, desc="Loading embeddings"):
         src_id = ex["source_id"]
@@ -40,7 +43,18 @@ def get_function_lengths(dataset):
         template[int(src_id)] = len(ex["source"])
         template[int(dec_id)] = len(ex["decompilation"])
     return template
+    '''
 
+    src_ids  = np.array(dataset["source_id"], dtype=np.int64)
+    dec_ids  = np.array(dataset["decompilation_id"], dtype=np.int64)
+    src_lens = np.array([len(s) for s in dataset["source"]])
+    dec_lens = np.array([len(s) for s in dataset["decompilation"]])
+
+    template = np.zeros(len(dataset) * 2, dtype=np.int64)
+    template[src_ids] = src_lens
+    template[dec_ids] = dec_lens
+    return template
+'''
 def get_function_signature_count(dataset):
 
     template = np.zeros(len(dataset) * 2)
@@ -49,9 +63,30 @@ def get_function_signature_count(dataset):
         dec_id = ex["decompilation_id"]
         # The number of arguments a function takes can be expressed as:
         # the number of commas in its signature plus one
-        template[int(src_id)] = ex["source"][ex["source"].find("(")+1: ex["source"].find(")")].count(',') + 1 
-        template[int(dec_id)] = ex["decompilation"][ex["decompilation"].find("(")+1: ex["decompilation"].find(")")].count(',') + 1
+        source_sig = ex["source"][ex["source"].find("(")+1: ex["source"].find(")")]
+        decomp_sig = ex["decompilation"][ex["decompilation"].find("(")+1: ex["decompilation"].find(")")]
+
+        template[int(src_id)] = source_sig.count(',') + 1 if source_sig.strip() else 0
+        template[int(dec_id)] = decomp_sig.count(',') + 1 if decomp_sig.strip() else 0
     return template
+'''
+
+def get_function_signature_count(dataset):
+    src_ids = np.array(dataset["source_id"], dtype=np.int64)
+    dec_ids = np.array(dataset["decompilation_id"], dtype=np.int64)
+
+    def sig_arg_count(code):
+        inner = code[code.find("(")+1 : code.find(")")]
+        return inner.count(',') + 1 if (inner.strip() and inner.strip() != "void") else 0
+    
+    src_counts = np.array([sig_arg_count(s) for s in dataset["source"]])
+    dec_counts = np.array([sig_arg_count(s) for s in dataset["decompilation"]])
+
+    template = np.zeros(len(dataset) * 2, dtype=np.int64)
+    template[src_ids] = src_counts
+    template[dec_ids] = dec_counts
+    return template
+
 
 def _get_safe_group(candidate_group):
     return (
@@ -66,9 +101,9 @@ def make_correlation_scatter(metrics_df, out_path, candidate_groups):
         df_group = metrics_df[metrics_df["candidate_group"] == candidate_group].copy()
         safe_group = _get_safe_group(candidate_group=candidate_group)
 
-        fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
+        fig, ax = plt.subplots(figsize=(16, 10), constrained_layout=True)
 
-        palette = sns.color_palette("tab10", n_colors=len(df_group))
+        palette = sns.color_palette("tab20", n_colors=len(df_group))
         for i, (_, row) in enumerate(df_group.iterrows()):
             ax.scatter(
                 row["Spearman Correlation - Function Length"],
@@ -90,6 +125,156 @@ def make_correlation_scatter(metrics_df, out_path, candidate_groups):
         plt.savefig(f"{out_path}/rank_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
         plt.close()
 
+        fig, ax = plt.subplots(figsize=(16, 10), constrained_layout=True)
+
+        for i, (_, row) in enumerate(df_group.iterrows()):
+            ax.scatter(
+                row["Spearman Correlation - Function Length"],
+                row["MRR"],
+                color=palette[i],
+                s=80,
+                label=row["model"],
+                zorder=3,
+            )
+
+        ax.axhline(0, color="gray", linewidth=0.7, linestyle="--")
+        ax.axvline(0, color="gray", linewidth=0.7, linestyle="--")
+        ax.set_xlabel("Spearman r  (Rank vs. Function Length)")
+        ax.set_ylabel("MRR")
+        ax.legend(title="Model", framealpha=0.85, fontsize=8)
+        plt.suptitle("Function Length Rank Correlation and MRR by Model", fontsize=13)
+        plt.title(candidate_group, fontsize=9)
+
+        plt.savefig(f"{out_path}/length_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+        fig, ax = plt.subplots(figsize=(16, 10), constrained_layout=True)
+        
+        for i, (_, row) in enumerate(df_group.iterrows()):
+            ax.scatter(
+                row["Spearman Correlation - Function Argument Count"],
+                row["MRR"],
+                color=palette[i],
+                s=80,
+                label=row["model"],
+                zorder=3,
+            )
+
+        ax.axhline(0, color="gray", linewidth=0.7, linestyle="--")
+        ax.axvline(0, color="gray", linewidth=0.7, linestyle="--")
+        ax.set_xlabel("Spearman r  (Rank vs. Function Argument Count)")
+        ax.set_ylabel("MRR")
+        ax.legend(title="Model", framealpha=0.85, fontsize=8)
+        plt.suptitle("Function Arguments Rank Correlation and MRR by Model", fontsize=13)
+        plt.title(candidate_group, fontsize=9)
+
+        plt.savefig(f"{out_path}/args_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+        fig, ax = plt.subplots(figsize=(16, 10), constrained_layout=True)
+        for i, (_, row) in enumerate(df_group.iterrows()):
+            ax.scatter(
+                row["size (B of params)"],
+                row["MRR"],
+                color=palette[i],
+                s=80,
+                label=row["model"],
+                zorder=3,
+            )
+
+        ax.axhline(0, color="gray", linewidth=0.7, linestyle="--")
+        ax.axvline(0, color="gray", linewidth=0.7, linestyle="--")
+        ax.set_xlabel("Model Size (B of params)")
+        ax.set_ylabel("MRR")
+        ax.legend(title="Model", framealpha=0.85, fontsize=8)
+        plt.suptitle("Model Size and MRR", fontsize=13)
+        plt.title(candidate_group, fontsize=9)
+
+        plt.savefig(f"{out_path}/size_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
+        plt.close()
+
+
+def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
+        
+    candidate_groups = metrics_df["candidate_group"].unique()
+    make_correlation_scatter(metrics_df, out_path, candidate_groups)
+
+    # Create TWO LaTeX tables: one per candidate group
+    for candidate_group in candidate_groups:
+        df_group = metrics_df[metrics_df["candidate_group"] == candidate_group].copy()
+        ranks_size = all_ranks[(model_names[0], candidate_group)].size
+        if "and" in candidate_group.lower():
+            ranks_size*=2
+
+        # Clean up column header name so it renders nicely in LaTeX
+        df_group.rename(
+            columns={
+                "candidate_group": "Candidate Group",
+                "model": "Model",
+            },
+            inplace=True,
+        )
+
+        # Use a safe version of the group name for filenames/labels
+        safe_group = _get_safe_group(candidate_group=candidate_group)
+        df_group = df_group.drop("Candidate Group", axis=1) # For aesthetics
+
+        # LaTeX table with caption mentioning the candidate group
+        df_group.to_latex(
+            f"{out_path}/metrics_table_{safe_group}.tex",
+            index=False,
+            float_format="%.4f",
+            column_format="ll" + "r" * (1 + 2 * len(k_for_recalls)),
+            caption=f"MRR, MRR@ k and Recall@ k for {candidate_group}.",
+            label=f"tab:metrics_{safe_group}",
+        )
+
+        metrics_cols = [col for col in df_group.columns if "MRR" in col or "Recall" in col]
+        for metric in metrics_cols:
+            fig = plt.figure(figsize=(16,12), constrained_layout=True)
+            ax = sns.barplot(df_group, 
+                            x="Model", 
+                            y=metric, 
+                            hue="size (B of params)", 
+                            legend=True, 
+                            palette="tab20")
+            plt.suptitle(f"Model {metric}, colored by size, {int(ranks_size)} functions", fontsize=18)
+            plt.title(candidate_group, fontsize=10)
+            ax.tick_params(axis="x", labelrotation=45)
+            plt.savefig(f"{out_path}/{metric.replace('@', 'at')}_by_model_and_size_{safe_group}.png")
+            plt.close()
+        
+
+    # Create two distinct plots (one per candidate group) of the recall@k curve,
+    # each model plotted as a different color on each plot.
+
+
+    for candidate_group in candidate_groups:
+        plt.figure(figsize=(24,16),constrained_layout=True)
+        palette = sns.color_palette("tab20", n_colors=len(model_names))
+        for color, model_name in zip(palette,model_names):
+            ranks = all_ranks[(model_name, candidate_group)]
+            # ECDF gives Recall@k curve: P(rank <= n) vs n
+            sns.ecdfplot(
+                data=ranks,
+                stat="proportion",
+                label=model_name,
+                color=color
+            )
+
+        plt.xlabel("k")
+        plt.ylabel("Fraction of Dataset Pairs Recalled ≤ k")
+        plt.title(f"Recall @ k for all k\n{candidate_group}")
+        plt.legend(title="Model")
+
+        safe_group = (
+            candidate_group.replace(" ", "_")
+            .replace("/", "_")
+            .replace("\\", "_")
+        )
+        out_name = f"{out_path}/recall_curve_{safe_group}.png"
+        plt.savefig(out_name, dpi=300, bbox_inches="tight")
+        plt.close()
 
 def analyze_sims(model_names: List[str], 
                  cosine_parquet_paths:List[str], 
@@ -106,7 +291,7 @@ def analyze_sims(model_names: List[str],
     procs = int(cpu_count * 7 / 8)
 
     # k values for which we will report Recall@k and MRR@k
-    k_for_recalls = [1, 3, 5, 10]
+    k_for_recalls = K_FOR_RECALLS
 
     # Collect per-(model, candidate_group) metrics
     metrics_rows = []
@@ -154,41 +339,34 @@ def analyze_sims(model_names: List[str],
 
         # Rank of the matching function among all other functions
         # Searching Source -> Decompiled
-        s2d_reciprocal_rank_of_all_other_functions = (
-            lambda x: df.loc[x]
-            .drop(labels=x)
-            .sort_values(ascending=False)
-            .index.get_loc(x + half_length)
-            + 1  # 1-based rank
-        )
+        def s2d_reciprocal_rank_of_all_other_functions(x, df=df, half_length=half_length):
+            return df.loc[x].drop(labels=x).sort_values(ascending=False).index.get_loc(x + half_length)+ 1  # 1-based rank
 
         # Rank of the matching function among decompilation-only candidates
         # Searching Source -> Decompiled
-        s2d_reciprocal_rank_of_just_decomp = (
-            lambda x: df.loc[x][half_length:]
+        def s2d_reciprocal_rank_of_just_decomp(x, df=df, half_length=half_length):
+            return (df.loc[x][half_length:]
             .sort_values(ascending=False)
             .index.get_loc(x + half_length)
             + 1  # 1-based rank
-        )
+            )
 
         # Rank of the matching function among all other functions
         # Searching Decompiled -> Source
-        d2s_reciprocal_rank_of_all_other_functions = (
-            lambda x: df.loc[x]
+        def d2s_reciprocal_rank_of_all_other_functions(x, df=df, half_length=half_length):
+            return(df.loc[x]
             .drop(labels=x)
             .sort_values(ascending=False)
-            .index.get_loc(x - half_length)
-            + 1  # 1-based rank
-        )
+            .index.get_loc(x - half_length)+ 1)  # 1-based rank
 
         # Rank of the matching function among source-only candidates
         # Searching Decompiled -> Source
-        d2s_reciprocal_rank_of_just_source = (
-            lambda x: df.loc[x][:half_length]
+        def d2s_reciprocal_rank_of_just_source (x, df=df, half_length=half_length):
+            return(df.loc[x][:half_length]
             .sort_values(ascending=False)
             .index.get_loc(x - half_length)
             + 1  # 1-based rank
-        )
+            )   
 
         s2d_iters = list(range(half_length))
         d2s_iters = list(range(half_length, half_length*2))
@@ -274,72 +452,12 @@ def analyze_sims(model_names: List[str],
 
     # Build metrics DataFrame for all models and candidate groups
     metrics_df = pd.DataFrame(metrics_rows)
-    candidate_groups = metrics_df["candidate_group"].unique()
-    make_correlation_scatter(metrics_df, out_path, candidate_groups)
 
-    # Create TWO LaTeX tables: one per candidate group
-    for candidate_group in candidate_groups:
-        df_group = metrics_df[metrics_df["candidate_group"] == candidate_group].copy()
-
-        # Clean up column header name so it renders nicely in LaTeX
-        df_group.rename(
-            columns={
-                "candidate_group": "Candidate Group",
-                "model": "Model",
-            },
-            inplace=True,
-        )
-
-        # Use a safe version of the group name for filenames/labels
-        safe_group = _get_safe_group(candidate_group=candidate_group)
-        df_group = df_group.drop("Candidate Group", axis=1) # For aesthetics
-
-        # LaTeX table with caption mentioning the candidate group
-        df_group.to_latex(
-            f"{out_path}/metrics_table_{safe_group}.tex",
-            index=False,
-            float_format="%.4f",
-            column_format="ll" + "r" * (1 + 2 * len(k_for_recalls)),
-            caption=f"MRR, MRR@ k and Recall@ k for {candidate_group}.",
-            label=f"tab:metrics_{safe_group}",
-        )
-
-        metrics_rows = [col for col in df_group.columns if "MRR" in col or "Recall" in col]
-        for metric in metrics_rows:
-            fig = plt.figure(constrained_layout=True)
-            ax = sns.barplot(df_group, x="Model", y=metric, hue="size (B of params)", legend=True)
-            plt.suptitle(f"Model {metric}, colored by size", fontsize=18)
-            plt.title(candidate_group, fontsize=10)
-            ax.tick_params(axis="x", labelrotation=45)
-            plt.savefig(f"{out_path}/{metric.replace("@", "at")}_by_model_and_size_{safe_group}")
-            plt.close()
-        
-
-    # Create two distinct plots (one per candidate group) of the recall@k curve,
-    # each model plotted as a different color on each plot.
-    
-
-    for candidate_group in candidate_groups:
-        plt.figure(constrained_layout=True)
-        for model_name in model_names:
-            ranks = all_ranks[(model_name, candidate_group)]
-            # ECDF gives Recall@k curve: P(rank <= n) vs n
-            sns.ecdfplot(
-                data=ranks,
-                stat="proportion",
-                label=model_name,
-            )
-
-        plt.xlabel("n")
-        plt.ylabel("Fraction of Dataset Pairs Recalled ≤ k")
-        plt.title(f"Recall @ k for all k\n{candidate_group}")
-        plt.legend(title="Model")
-
-        safe_group = (
-            candidate_group.replace(" ", "_")
-            .replace("/", "_")
-            .replace("\\", "_")
-        )
-        out_name = f"{out_path}/recall_curve_{safe_group}.png"
-        plt.savefig(out_name, dpi=300, bbox_inches="tight")
-        plt.close()
+    # save everything
+    try:
+        metrics_df.to_pickle("metrics_df.pkl")
+        with open('all_ranks.pkl', 'wb') as file:
+            pickle.dump(all_ranks, file)
+    except Exception as e:
+        print(e)
+    gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names)
