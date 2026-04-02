@@ -1,5 +1,16 @@
 models:
-  [bge-small-en-v1.5,
-  bge-base-en-v1.5,
-  bge-large-en-v1.5,
-  bge-m3]
+  [
+  #  mitRE_embed_Qwen_1,
+  BinSeek-Embedding,
+  mitRE_embed__Qwen-0.6B,
+  mitRE_embed_quant_Qwen-0.6B,
+  Qwen3-Embedding-0.6B,
+  bge-small-en-v1.5,
+  "bge-m3",
+  "Qwen3-Embedding-8B",
+  "embeddinggemma-300m",
+  "snowflake-arctic-embed-l-v2.0",
+  "SFR-Embedding-Mistral",
+  "jina-embeddings-v2-base-code",
+  "nomic-embed-code",
+  ]
