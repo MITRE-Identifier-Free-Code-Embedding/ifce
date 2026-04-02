@@ -58,7 +58,7 @@ def write_mem_stats(all_mem_stats, out_path):
 
     df_plot = df.reset_index()  # keep all cols, but only use Weights (GiB) in the plot
 
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(8, 5))
     ax = sns.barplot(
         data=df_plot,
         x="Model",

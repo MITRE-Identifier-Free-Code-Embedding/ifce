@@ -135,9 +135,12 @@ def summarize_descriptives(ap_dict):
     summary = {}
     for model, ap_list in ap_dict.items():
         arr = np.asarray(ap_list)
+        stdev = float(np.std(arr, ddof=1))
+        se = stdev / np.sqrt(arr.size)
         summary[model] = {
             "mean": float(np.mean(arr)),
-            "std": float(np.std(arr, ddof=1)),
+            "std": stdev,
+            "se": se,
             "median": float(np.median(arr)),
             "q1": float(np.percentile(arr, 25)),
             "q3": float(np.percentile(arr, 75)),
@@ -163,8 +166,8 @@ def latex_from_summary(summary,
     label : str, optional
         LaTeX label for referencing the table.
     """
-    # Column order
-    cols = ["mean", "std", "median", "q1", "q3"]
+    
+    cols = list(list(summary.values())[0].keys())
     col_header = " & ".join(["Model"] + [c.capitalize() for c in cols]) + r" \\"
 
     lines = []
@@ -266,27 +269,38 @@ def plot_group_map_bars(
                 "MAP": float(np.mean(aps)),
                 "n_constants": len(aps),
             })
-
     plot_df = pd.DataFrame(records)
+
+    group_variance = (
+        plot_df.groupby("group")["MAP"]
+        .var()
+        .sort_values(ascending=False)
+    )
+    top5_groups = group_variance.head(5).index.tolist()
+    plot_df = plot_df[plot_df["group"].isin(top5_groups)]
     groups = plot_df["group"].unique()
     models = plot_df["model"].unique()
     x = np.arange(len(groups))
     width = 0.8 / len(models)
 
+    # tab20 palette — one stable color per model
+    tab20 = plt.get_cmap("tab20")
+    colors = [tab20(i / max(len(models) - 1, 1)) for i in range(len(models))]
+
     fig, ax = plt.subplots(figsize=figsize)
-    for i, model in enumerate(models):
+    for i, (model, color) in enumerate(zip(models, colors)):
         vals = [
             plot_df.loc[
                 (plot_df["model"] == model) & (plot_df["group"] == g), "MAP"
             ].values[0]
             for g in groups
         ]
-        ax.bar(x + i * width, vals, width, label=model, alpha=0.85)
+        ax.bar(x + i * width, vals, width, label=model, color=color, alpha=0.85)
 
     ax.set_xticks(x + width * (len(models) - 1) / 2)
     ax.set_xticklabels(groups, rotation=45, ha="right", fontsize=8)
     ax.set_ylabel("MAP (mean over constants in group)")
-    ax.set_title("Per-Group MAP by Model — Experiment 2")
+    ax.set_title("Per-Group MAP by Model — Experiment 2 (Top 5 Most Variant Groups)")
     ax.legend()
     fig.tight_layout()
     fig.savefig(fig_path, dpi=300, bbox_inches="tight")
@@ -494,7 +508,7 @@ def plot_overlaid_kde(ap_dict, title:str, fig_path:str | Path, bw_method="scott"
     """
     from scipy.stats import gaussian_kde
 
-    plt.figure(figsize=(16, 10))
+    plt.figure(figsize=(10, 7))
     xs = np.linspace(0.0, 1.0, 200)
     for model, ap_list in ap_dict.items():
         arr = np.asarray(ap_list)
@@ -548,6 +562,56 @@ def plot_map_histograms(out_path, AP_dictionary, suptitle:str, extension:str,bin
     plt.tight_layout()
     plt.show()
     plt.savefig(f"{out_path}/sig_hist_{extension}.png")
+
+def plot_model_comparison_bars(
+    descriptives: dict[str, dict[str, float]],
+    exp_name: str,
+    extension_name: str,
+    map_or_ap: str,
+    fig_dir: str | Path,
+    figsize: tuple = (12, 6),
+):
+    """
+    Bar chart comparing models by MAP or AP with error bars (standard error).
+
+    descriptives: model_name -> {"mean": float, "se": float}
+    exp_name:        experiment name (used in title + filename)
+    extension_name:  extension/dataset name (used in title + filename)
+    map_or_ap:       "MAP" or "AP" — used for y-axis label and title
+    fig_dir:         directory to save the figure
+    figsize:         figure dimensions
+    """
+    models = list(descriptives.keys())
+    means  = [descriptives[m]["mean"] for m in models]
+    ses    = [descriptives[m]["se"]   for m in models]
+
+    tab20  = plt.get_cmap("tab20")
+    colors = [tab20(i / max(len(models) - 1, 1)) for i in range(len(models))]
+
+    x = np.arange(len(models))
+
+    fig, ax = plt.subplots(figsize=figsize)
+    bars = ax.bar(
+        x, means, width=0.6,
+        color=colors, alpha=0.85,
+        yerr=ses, capsize=5, error_kw={"elinewidth": 1.2, "ecolor": "black"},
+    )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(models, rotation=30, ha="right", fontsize=9)
+    ax.set_ylabel(f"{map_or_ap}")
+    ax.set_title(f"Mean {map_or_ap} by Model — {exp_name} / {extension_name}")
+    ax.yaxis.grid(True, linestyle="--", alpha=0.5)
+    ax.set_axisbelow(True)
+
+    fig.tight_layout()
+
+    slug = f"bar_plot_{exp_name}_{extension_name}_{map_or_ap}".replace(" ", "_").lower()
+    fig_path = Path(fig_dir) / f"{slug}.png"
+    fig.savefig(fig_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+    return fig_path
 
 def get_embeddings_from_model(keys, local_model, batch_size, model_name):
     embedding_dictionary = {}
@@ -709,21 +773,28 @@ def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
         plot_map_histograms(out_path,AP_dict, suptitle=exp_name, extension=extension_name)
         alpha = 0.05
         descriptives = summarize_descriptives(AP_dict) 
-        pprint(descriptives)
+        # pprint(descriptives)
         latex_from_summary(summary=descriptives, 
                         filepath = out_path / Path(f"distributions_summary_{extension_name}.tex"),
                         caption=f"Summary Statistics for {map_or_ap} by model, {exp_name}",
                         label=f"tab:{map_or_ap.lower()}_statistics")
 
+        plot_model_comparison_bars(
+            descriptives,
+            exp_name,
+            extension_name,
+            map_or_ap,
+            out_path,
+        )
 
         normality = test_normality(AP_dict, alpha=alpha)
-        pprint(normality)
+        # pprint(normality)
         latex_table_normality(normality_results=normality, 
                             caption=f"Shapiro–Wilk normality tests for {map_or_ap} distributions, {exp_name}",
                             label=f"tab:{map_or_ap.lower()}_normality",
                             file_path = out_path / Path(f"sig_normalit_{extension_name}.tex"))
         paired_results = paired_tests(AP_dict, alpha=alpha)   # if APs are aligned
-        pprint(paired_results)
+        # pprint(paired_results)
 
         tex_paired = latex_table_paired_wilcoxon(
         paired_results,

@@ -97,11 +97,12 @@ def _get_safe_group(candidate_group):
 
 def make_correlation_scatter(metrics_df, out_path, candidate_groups):
 
+    loc_figsize = (12,8)
     for candidate_group in candidate_groups:
         df_group = metrics_df[metrics_df["candidate_group"] == candidate_group].copy()
         safe_group = _get_safe_group(candidate_group=candidate_group)
 
-        fig, ax = plt.subplots(figsize=(16, 10), constrained_layout=True)
+        fig, ax = plt.subplots(figsize=loc_figsize, constrained_layout=True)
 
         palette = sns.color_palette("tab20", n_colors=len(df_group))
         for i, (_, row) in enumerate(df_group.iterrows()):
@@ -125,7 +126,7 @@ def make_correlation_scatter(metrics_df, out_path, candidate_groups):
         plt.savefig(f"{out_path}/rank_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
         plt.close()
 
-        fig, ax = plt.subplots(figsize=(16, 10), constrained_layout=True)
+        fig, ax = plt.subplots(figsize=loc_figsize, constrained_layout=True)
 
         for i, (_, row) in enumerate(df_group.iterrows()):
             ax.scatter(
@@ -148,7 +149,7 @@ def make_correlation_scatter(metrics_df, out_path, candidate_groups):
         plt.savefig(f"{out_path}/length_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
         plt.close()
 
-        fig, ax = plt.subplots(figsize=(16, 10), constrained_layout=True)
+        fig, ax = plt.subplots(figsize=loc_figsize, constrained_layout=True)
         
         for i, (_, row) in enumerate(df_group.iterrows()):
             ax.scatter(
@@ -171,7 +172,7 @@ def make_correlation_scatter(metrics_df, out_path, candidate_groups):
         plt.savefig(f"{out_path}/args_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
         plt.close()
 
-        fig, ax = plt.subplots(figsize=(16, 10), constrained_layout=True)
+        fig, ax = plt.subplots(figsize=loc_figsize, constrained_layout=True)
         for i, (_, row) in enumerate(df_group.iterrows()):
             ax.scatter(
                 row["size (B of params)"],
@@ -194,6 +195,215 @@ def make_correlation_scatter(metrics_df, out_path, candidate_groups):
         plt.close()
 
 
+def compute_query_metrics_from_ranks(ranks, k_for_recalls):
+    """
+    ranks: 1D iterable of integer ranks (1 = perfect, >k means 'miss' for Recall@k)
+    Returns:
+        metrics_per_query: dict with keys:
+          'MRR', 'MRR@k', 'Recall@k' -> 1D numpy arrays of length n_queries
+    """
+    ranks = np.asarray(ranks)
+    n = ranks.size
+
+    # Per-query reciprocal rank (for full MRR)
+    rr = 1.0 / ranks
+
+    metrics = {}
+    metrics["MRR"] = rr
+
+    # MRR@k: reciprocal rank truncated at k (0 if rank > k)
+    for k in k_for_recalls:
+        rr_k = np.where(ranks <= k, 1.0 / ranks, 0.0)
+        metrics[f"MRR@{k}"] = rr_k
+
+    # Recall@k: 1 if rank <= k, else 0
+    for k in k_for_recalls:
+        rec_k = (ranks <= k).astype(float)
+        metrics[f"Recall@{k}"] = rec_k
+
+    return metrics
+
+
+def _get_metric_sem_from_ranks(ranks, k_for_recalls):
+    """
+    Compute per-metric standard errors from per-query metric values induced by ranks.
+
+    Returns:
+        dict mapping metric name -> standard error of the mean for that metric
+    """
+    metrics_per_query = compute_query_metrics_from_ranks(ranks, k_for_recalls)
+    sems = {}
+
+    for metric_name, values in metrics_per_query.items():
+        values = np.asarray(values, dtype=float)
+        n = values.size
+        if n == 0:
+            sem = np.nan
+        elif n == 1:
+            sem = 0.0
+        else:
+            sem = values.std(ddof=1) / np.sqrt(n)
+        sems[metric_name] = sem
+
+    return sems
+
+# unused
+def _get_metric_sds_from_ranks(ranks, k_for_recalls):
+    """
+    Compute per-metric standard errors from per-query metric values induced by ranks.
+
+    Returns:
+        dict mapping metric name -> standard error of the mean for that metric
+    """
+    metrics_per_query = compute_query_metrics_from_ranks(ranks, k_for_recalls)
+    sds = {}
+
+    for metric_name, values in metrics_per_query.items():
+        values = np.asarray(values, dtype=float)
+        n = values.size
+        if n == 0:
+            sd = np.nan
+        elif n == 1:
+            sd = 0.0
+        else:
+            sd = values.std(ddof=1)
+        sds[metric_name] = sd
+
+    return sds
+
+
+def _attach_metric_se_columns(df_group, candidate_group, all_ranks, k_for_recalls):
+    """
+    Add <metric>_SE columns to a candidate-group dataframe, one row per model.
+
+    Expected input columns:
+        - 'model' or 'Model'
+        - metric columns like 'MRR', 'MRR@10', 'Recall@10', ...
+
+    Returns:
+        Copy of df_group with added SE columns.
+    """
+    df_group = df_group.copy()
+
+    model_col = "model" if "model" in df_group.columns else "Model"
+    metric_cols = [c for c in df_group.columns if ("MRR" in c or "Recall" in c)]
+
+    se_by_model = {}
+    for model_name in df_group[model_col]:
+        ranks = all_ranks[(model_name, candidate_group)]
+        se_by_model[model_name] = _get_metric_sem_from_ranks(ranks, k_for_recalls)
+
+    for metric in metric_cols:
+        se_col = f"{metric}_SE"
+        df_group[se_col] = df_group[model_col].map(lambda m: se_by_model[m].get(metric, np.nan))
+
+    return df_group
+
+
+def _add_errorbars_to_grouped_barplot(ax, df_plot, x_col, hue_col, y_col, err_col):
+    """
+    Add custom y-error bars to a seaborn grouped barplot.
+
+    This assumes:
+      - bars are drawn in the same order seaborn uses:
+        for each x category, iterate over hue levels
+      - df_plot contains one row per visible bar
+    """
+    x_levels = list(pd.unique(df_plot[x_col]))
+    hue_levels = list(pd.unique(df_plot[hue_col]))
+
+    expected_rows = []
+    for x_val in x_levels:
+        sub_x = df_plot[df_plot[x_col] == x_val]
+        for hue_val in hue_levels:
+            sub = sub_x[sub_x[hue_col] == hue_val]
+            if len(sub) == 0:
+                continue
+            expected_rows.append(sub.iloc[0])
+
+    expected_rows = [row for row in expected_rows if row["MRR"] >= 0.001]
+
+    patches = [patch for patch in ax.patches if isinstance(patch.get_height(), np.float64)]
+    if len(patches) != len(expected_rows):
+        raise ValueError(
+            f"Mismatch between plotted bars ({len(patches)}) and expected rows ({len(expected_rows)})."
+        )
+
+    for patch, row in zip(patches, expected_rows):
+        y = float(row[y_col])
+        yerr = float(row[err_col])
+
+        x_center = patch.get_x() + patch.get_width() / 2.0
+
+        ax.errorbar(
+            x=x_center,
+            y=y,
+            yerr=yerr,
+            fmt="none",
+            ecolor="black",
+            elinewidth=1.8,
+            capsize=6,
+            capthick=1.8,
+            zorder=10,
+        )
+
+def _plot_metric_with_errorbars(df_plot, metric, se_col, out_path, candidate_group, safe_group, ranks_size):
+    x_labels = df_plot["Model"].tolist()
+    hue_levels = sorted(df_plot["size (B of params)"].unique())
+    n_hue = len(hue_levels)
+    n_x = len(x_labels)
+
+    # Compute bar positions explicitly
+    group_width = 0.8
+    bar_width = group_width #/ n_hue
+    x_base = np.arange(n_x)
+    offsets = np.linspace(-group_width / 2 + bar_width / 2, group_width / 2 - bar_width / 2, n_hue)
+
+    palette = sns.color_palette("tab20", n_hue)
+
+    fig, ax = plt.subplots(figsize=(16, 12), constrained_layout=True)
+
+    for i, (hue_val, offset) in enumerate(zip(hue_levels, offsets)):
+        sub = df_plot[df_plot["size (B of params)"] == hue_val]
+
+        # Build arrays aligned to x_labels order
+        means = np.array([
+            sub.loc[sub["Model"] == m, metric].values[0] if m in sub["Model"].values else 0.0
+            for m in x_labels
+        ])
+        ses = np.array([
+            sub.loc[sub["Model"] == m, se_col].values[0] if m in sub["Model"].values else 0.0
+            for m in x_labels
+        ])
+
+        x_pos = x_base #+ offset
+        ax.bar(x_pos, means, width=bar_width, color=palette[i], label=str(hue_val))
+        ax.errorbar(
+            x=x_pos,
+            y=means,
+            yerr=ses,
+            fmt="none",
+            ecolor="black",
+            elinewidth=1,
+            capsize=4,
+            capthick=1,
+        )
+
+    ax.set_xticks(x_base)
+    ax.set_xticklabels(x_labels, rotation=45, ha="right")
+    ax.legend(title="size (B of params)")
+    ax.set_ylabel(metric)
+
+    fig.suptitle(f"Model {metric}, colored by size, {int(ranks_size)} functions", fontsize=18)
+    ax.set_title(f"{candidate_group} (error bars = ±1 SE)", fontsize=10)
+
+    plt.savefig(
+        f"{out_path}/{metric.replace('@', 'at')}_by_model_and_size_{safe_group}.png",
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close()
+
 def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
         
     candidate_groups = metrics_df["candidate_group"].unique()
@@ -202,8 +412,16 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
     # Create TWO LaTeX tables: one per candidate group
     for candidate_group in candidate_groups:
         df_group = metrics_df[metrics_df["candidate_group"] == candidate_group].copy()
+
+        df_group = _attach_metric_se_columns(
+            df_group=df_group,
+            candidate_group=candidate_group,
+            all_ranks=all_ranks,
+            k_for_recalls=k_for_recalls,
+        )
+
         ranks_size = all_ranks[(model_names[0], candidate_group)].size
-        if "and" in candidate_group.lower():
+        if " and " in candidate_group.lower():
             ranks_size*=2
 
         # Clean up column header name so it renders nicely in LaTeX
@@ -229,28 +447,27 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
             label=f"tab:metrics_{safe_group}",
         )
 
-        metrics_cols = [col for col in df_group.columns if "MRR" in col or "Recall" in col]
+        metrics_cols = [col for col in df_group.columns if ("MRR" in col or "Recall" in col) and ("SE" not in col)]
         for metric in metrics_cols:
-            fig = plt.figure(figsize=(16,12), constrained_layout=True)
-            ax = sns.barplot(df_group, 
-                            x="Model", 
-                            y=metric, 
-                            hue="size (B of params)", 
-                            legend=True, 
-                            palette="tab20")
-            plt.suptitle(f"Model {metric}, colored by size, {int(ranks_size)} functions", fontsize=18)
-            plt.title(candidate_group, fontsize=10)
-            ax.tick_params(axis="x", labelrotation=45)
-            plt.savefig(f"{out_path}/{metric.replace('@', 'at')}_by_model_and_size_{safe_group}.png")
-            plt.close()
-        
+            se_col = f"{metric}_SE"
+            
+            _plot_metric_with_errorbars(
+                df_plot=df_group,
+                metric=metric,
+                se_col=se_col,
+                out_path=out_path,
+                candidate_group=candidate_group,
+                safe_group=safe_group,
+                ranks_size=ranks_size,
+            )
+
 
     # Create two distinct plots (one per candidate group) of the recall@k curve,
     # each model plotted as a different color on each plot.
 
 
     for candidate_group in candidate_groups:
-        plt.figure(figsize=(24,16),constrained_layout=True)
+        plt.figure(figsize=(12,8),constrained_layout=True)
         palette = sns.color_palette("tab20", n_colors=len(model_names))
         for color, model_name in zip(palette,model_names):
             ranks = all_ranks[(model_name, candidate_group)]

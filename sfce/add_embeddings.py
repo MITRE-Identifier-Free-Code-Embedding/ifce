@@ -90,7 +90,7 @@ def save_tsne_figures_from_embeddings(
     )
 
     uniques = ["decompilation", "source"]
-    cmap = cm.get_cmap("tab10", len(uniques))
+    cmap = cm.get_cmap("coolwarm", len(uniques))
     color_map = {lab: cmap(i) for i, lab in enumerate(uniques)}
 
     # --- 2D t-SNE
@@ -307,12 +307,30 @@ def create_embeddings(data_directory: str,
     print(f"Processed Embeddings at {new_ds_directory}")
     return new_ds_directory
 
+def just_embeddings(data_directory, 
+                    model_config_path,
+                    out_path: str = str(Path(__file__).resolve().parent / Path("experiment_results")),):
+    yaml_config = yaml_safe_load(model_config_path)
+    new_ds_directory = f"{data_directory}_embedded"
+    cached_ds = load_from_disk(new_ds_directory)
+    
+    for model in yaml_config["models"]:
+        save_tsne_figures_from_embeddings(
+            ds=cached_ds,
+            model_name=model,
+            out_path=out_path,
+        )
+
+
+
 
 if __name__ == "__main__":
     # Retained for test case
     DATA_DIR = "/home/ewolos/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd"
     CONFIG_PATH = "/home/ewolos/semantic-free-code-embedding/config/experiment_config.yaml"
     BATCH_SIZE = 64
-    create_embeddings(data_directory = DATA_DIR, 
-                      model_config_path = CONFIG_PATH, 
-                      batch_size = BATCH_SIZE)
+    just_embeddings(data_directory = DATA_DIR, 
+                    model_config_path = CONFIG_PATH)
+    #create_embeddings(data_directory = DATA_DIR, 
+    #                  model_config_path = CONFIG_PATH, 
+    #                  batch_size = BATCH_SIZE)
