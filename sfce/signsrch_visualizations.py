@@ -1,8 +1,8 @@
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+
 
 def plot_group_map_bars(
     group_aps_exp2: dict[str, dict[str, list[float]]],
@@ -16,19 +16,17 @@ def plot_group_map_bars(
     records = []
     for model_name, group_aps in group_aps_exp2.items():
         for group_name, aps in group_aps.items():
-            records.append({
-                "model": model_name,
-                "group": group_name,
-                "MAP": float(np.mean(aps)),
-                "n_constants": len(aps),
-            })
+            records.append(
+                {
+                    "model": model_name,
+                    "group": group_name,
+                    "MAP": float(np.mean(aps)),
+                    "n_constants": len(aps),
+                }
+            )
     plot_df = pd.DataFrame(records)
 
-    group_variance = (
-        plot_df.groupby("group")["MAP"]
-        .var()
-        .sort_values(ascending=False)
-    )
+    group_variance = plot_df.groupby("group")["MAP"].var().sort_values(ascending=False)
     top5_groups = group_variance.head(5).index.tolist()
     plot_df = plot_df[plot_df["group"].isin(top5_groups)]
     groups = plot_df["group"].unique()
@@ -60,15 +58,16 @@ def plot_group_map_bars(
     plt.close(fig)
 
 
-
-def plot_wilcoxon_pvalue_heatmap(paired_results,
-                                 exp_name:str,
-                                 alpha=0.05,
-                                 log10_transform=True,
-                                 cmap="viridis",
-                                 file_path=None,
-                                 annotate=True,
-                                 figsize=(12, 10)):
+def plot_wilcoxon_pvalue_heatmap(
+    paired_results,
+    exp_name: str,
+    alpha=0.05,
+    log10_transform=True,
+    cmap="viridis",
+    file_path=None,
+    annotate=True,
+    figsize=(12, 10),
+):
     """
     Create a heatmap of pairwise Wilcoxon p-values from paired_results.
 
@@ -84,7 +83,7 @@ def plot_wilcoxon_pvalue_heatmap(paired_results,
     """
     # Collect model names
     models = set()
-    for (m1, m2) in paired_results.keys():
+    for m1, m2 in paired_results.keys():
         models.add(m1)
         models.add(m2)
     models = sorted(models)
@@ -141,10 +140,19 @@ def plot_wilcoxon_pvalue_heatmap(paired_results,
                     text_val = f"{p_mat[i, j]:.3f}"
                 else:
                     text_val = f"{p_mat[i, j]:.3f}"
-                ax.text(j, i, text_val,
-                        ha="center", va="center",
-                        color="white" if masked_data[i, j] > np.nanmax(masked_data) / 2 else "black",
-                        fontsize=8)
+                ax.text(
+                    j,
+                    i,
+                    text_val,
+                    ha="center",
+                    va="center",
+                    color=(
+                        "white"
+                        if masked_data[i, j] > np.nanmax(masked_data) / 2
+                        else "black"
+                    ),
+                    fontsize=8,
+                )
 
     title = f"Pairwise Wilcoxon p-values, {exp_name}"
     if log10_transform:
@@ -183,7 +191,8 @@ def plot_overlaid_histograms(ap_dict, bins=20, density=False, alpha=0.4):
     plt.savefig("overlaid_histograms.png")
     plt.close()
 
-def plot_overlaid_kde(ap_dict, title:str, fig_path:str | Path, bw_method="scott"):
+
+def plot_overlaid_kde(ap_dict, title: str, fig_path: str | Path, bw_method="scott"):
     """
     Optional: plot overlaid kernel density estimates for smoother distribution comparison.
     """
@@ -204,7 +213,10 @@ def plot_overlaid_kde(ap_dict, title:str, fig_path:str | Path, bw_method="scott"
     plt.savefig(fig_path)
     plt.close()
 
-def plot_map_histograms(out_path, AP_dictionary, suptitle:str, extension:str,bins=50):
+
+def plot_map_histograms(
+    out_path, AP_dictionary, suptitle: str, extension: str, bins=50
+):
     plt.figure(figsize=(16, 10))
 
     # Choose a global range over all models to align bins
@@ -219,11 +231,11 @@ def plot_map_histograms(out_path, AP_dictionary, suptitle:str, extension:str,bin
         plt.hist(
             aps,
             bins=bin_edges,
-            alpha=0.4,          # transparency so overlaps are visible
+            alpha=0.4,  # transparency so overlaps are visible
             label=model_name,
-            density=True,       # compare shapes as distributions
+            density=True,  # compare shapes as distributions
             edgecolor="black",
-            linewidth=0.5
+            linewidth=0.5,
         )
 
         # Optional: vertical line at mean
@@ -232,7 +244,7 @@ def plot_map_histograms(out_path, AP_dictionary, suptitle:str, extension:str,bin
             mean_val,
             linestyle="--",
             linewidth=1,
-            label=f"{model_name} mean: {mean_val:.3f}"
+            label=f"{model_name} mean: {mean_val:.3f}",
         )
 
     plt.xlabel("MAP")
@@ -243,6 +255,7 @@ def plot_map_histograms(out_path, AP_dictionary, suptitle:str, extension:str,bin
     plt.tight_layout()
     plt.show()
     plt.savefig(f"{out_path}/sig_hist_{extension}.png")
+
 
 def plot_model_comparison_bars(
     descriptives: dict[str, dict[str, float]],
@@ -263,19 +276,24 @@ def plot_model_comparison_bars(
     figsize:         figure dimensions
     """
     models = list(descriptives.keys())
-    means  = [descriptives[m]["mean"] for m in models]
-    ses    = [descriptives[m]["se"]   for m in models]
+    means = [descriptives[m]["mean"] for m in models]
+    ses = [descriptives[m]["se"] for m in models]
 
-    tab20  = plt.get_cmap("tab20")
+    tab20 = plt.get_cmap("tab20")
     colors = [tab20(i / max(len(models) - 1, 1)) for i in range(len(models))]
 
     x = np.arange(len(models))
 
     fig, ax = plt.subplots(figsize=figsize)
     bars = ax.bar(
-        x, means, width=0.6,
-        color=colors, alpha=0.85,
-        yerr=ses, capsize=5, error_kw={"elinewidth": 1.2, "ecolor": "black"},
+        x,
+        means,
+        width=0.6,
+        color=colors,
+        alpha=0.85,
+        yerr=ses,
+        capsize=5,
+        error_kw={"elinewidth": 1.2, "ecolor": "black"},
     )
 
     ax.set_xticks(x)

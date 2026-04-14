@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from scipy import stats
 
 
-
 def scatter_with_fit(
     x,
     y,
@@ -44,7 +43,7 @@ def scatter_with_fit(
 
     sns.set_theme(style="whitegrid", context="talk")
 
-    fig, ax = plt.subplots(figsize=(16,10))
+    fig, ax = plt.subplots(figsize=(16, 10))
 
     # Log-scale scatter
     sns.scatterplot(
@@ -143,13 +142,13 @@ def histogram(
 
     sns.set_theme(style="whitegrid", context="talk")
 
-    fig, ax = plt.subplots(figsize=(16,10))
+    fig, ax = plt.subplots(figsize=(16, 10))
 
     sns.histplot(
         group_a,
         ax=ax,
         kde=True,
-        color="#3182bd",   # soft blue
+        color="#3182bd",  # soft blue
         label=label_a,
         alpha=0.55,
         linewidth=0.6,
@@ -158,7 +157,7 @@ def histogram(
         group_b,
         ax=ax,
         kde=True,
-        color="#e6550d",   # warm orange
+        color="#e6550d",  # warm orange
         label=label_b,
         alpha=0.55,
         linewidth=0.6,
@@ -176,7 +175,9 @@ def histogram(
     fig.savefig(filename, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-def log_histogram(data,
+
+def log_histogram(
+    data,
     title: str,
     suptitle: str,
     xlabel: str,
@@ -225,13 +226,30 @@ def log_histogram(data,
     counts_a, _ = np.histogram(group_a, bins=bins)
     counts_b, _ = np.histogram(group_b, bins=bins)
 
-    fig, ax = plt.subplots(figsize=(16,10))
+    fig, ax = plt.subplots(figsize=(16, 10))
 
-    ax.bar(centers, counts_a, width=widths * 0.9, bottom=0,
-           color="#f0e929", alpha=0.6, linewidth=0.8, label=label_a)
+    ax.bar(
+        centers,
+        counts_a,
+        width=widths * 0.9,
+        bottom=0,
+        color="#f0e929",
+        alpha=0.6,
+        linewidth=0.8,
+        label=label_a,
+    )
 
-    ax.bar(centers, counts_b, width=widths * 0.9, bottom=0,
-           fill=True, alpha=0.5, color="#3182bd", linewidth=1.5, label=label_b)
+    ax.bar(
+        centers,
+        counts_b,
+        width=widths * 0.9,
+        bottom=0,
+        fill=True,
+        alpha=0.5,
+        color="#3182bd",
+        linewidth=1.5,
+        label=label_b,
+    )
 
     ax.set_yscale("log")
     ax.yaxis.set_major_formatter(plt.LogFormatter(labelOnlyBase=False))
@@ -286,22 +304,27 @@ def boxplot(
         raise ValueError("data must have an even length to split into two equal groups")
 
     mid = len(data) // 2
-    df = pd.DataFrame({
-        "value": data,
-        "group": [label_a] * mid + [label_b] * (len(data) - mid),
-    })
+    df = pd.DataFrame(
+        {
+            "value": data,
+            "group": [label_a] * mid + [label_b] * (len(data) - mid),
+        }
+    )
 
     sns.set_theme(style="whitegrid", context="talk")
 
-    fig, ax = plt.subplots(figsize=(16,10))
+    fig, ax = plt.subplots(figsize=(16, 10))
 
     sns.boxplot(
         data=df,
         x="group",
         y="value",
         ax=ax,
-        palette={"Group A": "#3182bd", "Group B": "#e6550d"} if label_a == "Group A"
-                else {label_a: "#3182bd", label_b: "#e6550d"},
+        palette=(
+            {"Group A": "#3182bd", "Group B": "#e6550d"}
+            if label_a == "Group A"
+            else {label_a: "#3182bd", label_b: "#e6550d"}
+        ),
         width=0.45,
         linewidth=1.5,
         flierprops=dict(
@@ -336,6 +359,7 @@ def boxplot(
 
     fig.savefig(filename, dpi=150, bbox_inches="tight")
     plt.close(fig)
+
 
 def trimmed_quantile_boxplot(
     data,
@@ -383,7 +407,7 @@ def trimmed_quantile_boxplot(
         lo = np.quantile(data, trim_quantile)
         hi = np.quantile(data, 1.0 - trim_quantile)
         mask = (data >= lo) & (data <= hi)
-        data      = data[mask]
+        data = data[mask]
         group_col = group_col[mask]
 
     df = pd.DataFrame({"value": data, "group": group_col})
@@ -392,7 +416,7 @@ def trimmed_quantile_boxplot(
 
     sns.set_theme(style="whitegrid", context="talk")
 
-    fig, ax = plt.subplots(figsize=(16,10))
+    fig, ax = plt.subplots(figsize=(16, 10))
 
     sns.boxplot(
         data=df,

@@ -18,18 +18,19 @@ from pathlib import Path
 TARGET_EMBED_COUNT = 10_000
 
 VLLM_MEM_PATTERNS = {
-    "weights_gb":    re.compile(r"Model loading took\s+([\d.]+)\s*GiB"),
+    "weights_gb": re.compile(r"Model loading took\s+([\d.]+)\s*GiB"),
     # "non_torch_gb":  re.compile(r"non_torch_memory takes\s+([\d.]+)\s*GiB"),
     # "activation_gb": re.compile(r"PyTorch activation peak memory takes\s+([\d.]+)\s*GiB"),
-    "kv_cache_gb":   re.compile(r"Available KV cache memory:\s+([\d.]+)\s*GiB"),
+    "kv_cache_gb": re.compile(r"Available KV cache memory:\s+([\d.]+)\s*GiB"),
 }
 
-def get_memory(log_file, all_mem_stats, model_name:str): # TODO fix this stuff
-        
+
+def get_memory(log_file, all_mem_stats, model_name: str):  # TODO fix this stuff
+
     # After health check confirms server is up
     mem_stats = {k: None for k in VLLM_MEM_PATTERNS}
     with open(log_file, "r") as f:
-        lines = ''.join(f.readlines())
+        lines = "".join(f.readlines())
         for key, pattern in VLLM_MEM_PATTERNS.items():
             if "cpu" in model_name:
                 mem_stats[key] = 0
@@ -42,12 +43,15 @@ def get_memory(log_file, all_mem_stats, model_name:str): # TODO fix this stuff
     all_mem_stats[model_name] = mem_stats
     return all_mem_stats
 
+
 def write_mem_stats(all_mem_stats, out_path):
 
-    df = pd.DataFrame(all_mem_stats).T.rename(columns={
-        "weights_gb":  "Weights (GiB)",
-        "kv_cache_gb": "KV Cache (GiB)",
-    })
+    df = pd.DataFrame(all_mem_stats).T.rename(
+        columns={
+            "weights_gb": "Weights (GiB)",
+            "kv_cache_gb": "KV Cache (GiB)",
+        }
+    )
     df.index.name = "Model"
 
     # Save CSV with both columns
@@ -97,6 +101,7 @@ def plot_embed_times(timing_results: dict[str, dict], out_path: Path):
     ]
 
     import pandas as pd
+
     df = pd.DataFrame(rows)
 
     sns.set_theme(style="whitegrid", font_scale=1.1)
@@ -189,14 +194,16 @@ def main(
 
         all_mem_stats = get_memory(local_model._log_file_path, all_mem_stats, model)
 
-        for _, batch in enumerate(tqdm(batched_ds, desc=f"[{model}] Embedding batches...")):
+        for _, batch in enumerate(
+            tqdm(batched_ds, desc=f"[{model}] Embedding batches...")
+        ):
             for key in ["decompilation", "source"]:
                 t0 = perf_counter()
                 embeddings = local_model.embed_batch(batch[key])
                 elapsed[key] += perf_counter() - t0
                 total_embedded[key] += len(batch[key])
 
-        del(local_model)
+        del local_model
         gc.collect()
 
         for key in ["decompilation", "source"]:
@@ -206,11 +213,13 @@ def main(
                 f"{elapsed[key]:.2f}s for {total_embedded[key]} samples "
                 f"→ ~{timing_results[model][key]:.1f}s per {TARGET_EMBED_COUNT:,}"
             )
-        
 
     plot_embed_times(timing_results, out_path)
     write_mem_stats(all_mem_stats, out_path)
 
+
 if __name__ == "__main__":
-    main(model_config_path="../config/time_experiment_config.yaml",
-    data_directory="../data/decompiled_summaries_TEST_copy_idd/")
+    main(
+        model_config_path="../config/time_experiment_config.yaml",
+        data_directory="../data/decompiled_summaries_TEST_copy_idd/",
+    )
