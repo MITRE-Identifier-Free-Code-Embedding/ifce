@@ -9,7 +9,7 @@ from signsrch_to_dict import gen_signsrch_products, parse_signsrch
 
 if __name__ == "__main__":
 
-    CONFIG_PATH = "/home/ewolos/semantic-free-code-embedding/config/experiment_config.yaml"
+    CONFIG_PATH = f"{os.path.expanduser("~")}/semantic-free-code-embedding/config/experiment_config.yaml"
     model_names = yaml_safe_load(CONFIG_PATH)["models"]
     with open("metrics_df.pkl", 'rb') as file:
         metrics_df = pickle.load(file)
@@ -22,11 +22,11 @@ if __name__ == "__main__":
     out_path = Path(__file__).resolve().parent / Path("experiment_results")
     os.makedirs(out_path, exist_ok=True)
 
-    gen_products(metrics_df=metrics_df,
-    out_path=out_path,
-    all_ranks=all_ranks,
-    k_for_recalls=k_for_recalls,
-    model_names = model_names)
+    #gen_products(metrics_df=metrics_df,
+    #out_path=out_path,
+    #all_ranks=all_ranks,
+    #k_for_recalls=k_for_recalls,
+    #model_names = model_names)
 
     with open("AP_dict_exps.pkl", 'rb') as file:
         AP_dict_exp1, AP_dict_exp2 = pickle.load(file)

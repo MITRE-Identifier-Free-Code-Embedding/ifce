@@ -7,9 +7,6 @@ import numpy as np
 import pandas as pd
 import math
 
-###############################################
-# Step 2: utilities for pair-based splitting
-###############################################
 
 def partner_index(i: int, num_ids: int) -> int:
     """
@@ -172,10 +169,6 @@ def build_pair_based_splits(
         "OOD_test": OOD_test,
     }
 
-
-###############################################
-# Step 3: inductive conformal kNN anomaly detection
-###############################################
 
 def knn_conformal_ood_with_pairs(
     cosine_parquet_path: str,

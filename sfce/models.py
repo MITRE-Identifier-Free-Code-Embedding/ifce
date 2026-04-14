@@ -14,7 +14,6 @@ import time
 import signal
 import requests
 from openai import OpenAI
-# TODO change type annotations to reflect model return types
 
 THIS_FILES_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 
@@ -114,7 +113,6 @@ class HFBGE3EmbeddingModel(EmbeddingModel):
                                        max_length=8192,)["dense_vecs"]
         return result.tolist()
 
-# TODO add Qwen3 models w / wo "prompting"?
 class Qwen3EmbeddingModel(EmbeddingModel):
     def __init__(self, name:str, device:str = "cpu", prompting=False, **kwargs):
         super().__init__(name=name)
@@ -203,9 +201,6 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
         # so fall back to the value passed in or a safe default
         self.truncate_length = (max_model_len - 1) if max_model_len else 32767
 
-    # ------------------------------------------------------------------
-    # Server lifecycle
-    # ------------------------------------------------------------------
 
     def _start_server(self, device, gpu_memory_utilization, max_model_len, **kwargs):
         cmd = [
@@ -294,9 +289,6 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
             self._log_file = None
         self._process = None
 
-    # ------------------------------------------------------------------
-    # Context-manager support  (with Qwen3EmbeddingModel(...) as m: ...)
-    # ------------------------------------------------------------------
 
     def __enter__(self):
         return self
@@ -307,9 +299,6 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
     def __del__(self):
         self._shutdown()
 
-    # ------------------------------------------------------------------
-    # Prompting helpers  (unchanged from original)
-    # ------------------------------------------------------------------
 
     def _get_detailed_instruct(self, text: str) -> str:
         return f"Instruct: {self.task_description}\nQuery: {text}"
@@ -323,10 +312,6 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
             self._get_detailed_instruct(s) if self.prompting else s
             for s in str_or_strs
         ]
-
-    # ------------------------------------------------------------------
-    # Embedding API
-    # ------------------------------------------------------------------
 
     def embed(self, str_to_embed: str) -> np.ndarray:
         str_to_embed = self._potentially_add_query(str_to_embed)
@@ -504,8 +489,9 @@ class NomicAIEmbeddingModel(BaseSentenceTransformerModel):
                 model_kwargs={"dtype":"bfloat16"}):
         super().__init__(name=name, base_name=base_name, device=device,model_kwargs=model_kwargs)
 
-    # TODO this might be confusing.
     def embed_batch(self, strs_to_embed:List[str]) -> np.ndarray:
+        if isinstance(strs_to_embed, str):
+            raise TypeError("embed_batch must take a list of strs")
         return self.embed_batch_as_smaller_pieces(strs_to_embed=strs_to_embed)        
     
 
@@ -555,6 +541,6 @@ MODEL_SIZE_MAP = {"bge-small-en-v1.5": 0.033,
 for entry in Path(Path(THIS_FILES_DIRECTORY) / "models").iterdir():
     if entry.is_dir():
         MODEL_CLASS_MAP.update({entry.name:OnlineCustomEmbeddingModel})
-        MODEL_SIZE_MAP.update({entry.name:0.6})
+        MODEL_SIZE_MAP.update({entry.name:0.6}) # Hardcoded for now, needs adjusting if new custom model is introduced.
 
 assert(set(MODEL_CLASS_MAP.keys()) == set(MODEL_SIZE_MAP.keys()))

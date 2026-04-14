@@ -4,6 +4,7 @@ from find_distances import find_distances
 from analyze_sims import analyze_sims
 from get_stats_for_f1 import get_stats_for_f1
 from signsrch_to_dict import run_signsrch_exps
+import os
 
 def arg_parse():
     parser = argparse.ArgumentParser(
@@ -13,21 +14,21 @@ def arg_parse():
 
     parser.add_argument(
         "--data_dir_path",
-        default="/home/ewolos/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd",
+        default=f"{os.path.expanduser("~")}/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd",
         type=str,
         help="The path to the directory to process."
     )
 
     parser.add_argument(
         "--yaml_file_path",
-        default="/home/ewolos/semantic-free-code-embedding/config/experiment_config.yaml",
+        default=f"{os.path.expanduser("~")}/semantic-free-code-embedding/config/experiment_config.yaml",
         type=str,
         help="The path to the yaml config."
     )
 
     parser.add_argument(
         "--signsrch_path",
-        default="/home/ewolos/semantic-free-code-embedding/data/signsrch.sig",
+        default=f"{os.path.expanduser("~")}/semantic-free-code-embedding/data/signsrch.sig",
         type=str,
         help="The path to the Signsrch Sig file."
     )

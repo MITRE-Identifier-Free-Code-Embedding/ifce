@@ -97,7 +97,7 @@ def _get_safe_group(candidate_group):
 
 def make_correlation_scatter(metrics_df, out_path, candidate_groups):
 
-    loc_figsize = (12,8)
+    loc_figsize = (9,6)
     for candidate_group in candidate_groups:
         df_group = metrics_df[metrics_df["candidate_group"] == candidate_group].copy()
         safe_group = _get_safe_group(candidate_group=candidate_group)
@@ -119,9 +119,9 @@ def make_correlation_scatter(metrics_df, out_path, candidate_groups):
         ax.axvline(0, color="gray", linewidth=0.7, linestyle="--")
         ax.set_xlabel("Spearman r  (Rank vs. Function Length)")
         ax.set_ylabel("Spearman r  (Rank vs. Argument Count)")
-        ax.legend(title="Model", framealpha=0.85, fontsize=8)
-        plt.suptitle("Rank Correlation by Model", fontsize=13)
-        plt.title(candidate_group, fontsize=9)
+        ax.legend(title="Model")
+        plt.suptitle("Rank Correlation by Model", fontsize=12)
+        plt.title(candidate_group, fontsize=10)
 
         plt.savefig(f"{out_path}/rank_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
         plt.close()
@@ -142,9 +142,9 @@ def make_correlation_scatter(metrics_df, out_path, candidate_groups):
         ax.axvline(0, color="gray", linewidth=0.7, linestyle="--")
         ax.set_xlabel("Spearman r  (Rank vs. Function Length)")
         ax.set_ylabel("MRR")
-        ax.legend(title="Model", framealpha=0.85, fontsize=8)
-        plt.suptitle("Function Length Rank Correlation and MRR by Model", fontsize=13)
-        plt.title(candidate_group, fontsize=9)
+        ax.legend(title="Model")
+        plt.suptitle("Function Length Rank Correlation and MRR by Model", fontsize=12)
+        plt.title(candidate_group, fontsize=10)
 
         plt.savefig(f"{out_path}/length_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
         plt.close()
@@ -165,9 +165,9 @@ def make_correlation_scatter(metrics_df, out_path, candidate_groups):
         ax.axvline(0, color="gray", linewidth=0.7, linestyle="--")
         ax.set_xlabel("Spearman r  (Rank vs. Function Argument Count)")
         ax.set_ylabel("MRR")
-        ax.legend(title="Model", framealpha=0.85, fontsize=8)
-        plt.suptitle("Function Arguments Rank Correlation and MRR by Model", fontsize=13)
-        plt.title(candidate_group, fontsize=9)
+        ax.legend(title="Model")
+        plt.suptitle("Function Arguments Rank Correlation and MRR by Model", fontsize=12)
+        plt.title(candidate_group, fontsize=10)
 
         plt.savefig(f"{out_path}/args_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
         plt.close()
@@ -187,9 +187,9 @@ def make_correlation_scatter(metrics_df, out_path, candidate_groups):
         ax.axvline(0, color="gray", linewidth=0.7, linestyle="--")
         ax.set_xlabel("Model Size (B of params)")
         ax.set_ylabel("MRR")
-        ax.legend(title="Model", framealpha=0.85, fontsize=8)
-        plt.suptitle("Model Size and MRR", fontsize=13)
-        plt.title(candidate_group, fontsize=9)
+        ax.legend(title="Model")
+        plt.suptitle("Model Size and MRR", fontsize=12)
+        plt.title(candidate_group, fontsize=10)
 
         plt.savefig(f"{out_path}/size_corr_scatter_{safe_group}.png", dpi=300, bbox_inches="tight")
         plt.close()
@@ -353,20 +353,19 @@ def _plot_metric_with_errorbars(df_plot, metric, se_col, out_path, candidate_gro
     n_hue = len(hue_levels)
     n_x = len(x_labels)
 
-    # Compute bar positions explicitly
     group_width = 0.8
-    bar_width = group_width #/ n_hue
+    bar_width = group_width
     x_base = np.arange(n_x)
     offsets = np.linspace(-group_width / 2 + bar_width / 2, group_width / 2 - bar_width / 2, n_hue)
 
-    palette = sns.color_palette("tab20", n_hue)
+    metric_safe = metric.replace('@', 'at')
 
-    fig, ax = plt.subplots(figsize=(16, 12), constrained_layout=True)
+    # ── Plot 1: colored by model size (original) ─────────────────────────────
+    palette_size = sns.color_palette("tab20", n_hue)
 
+    fig, ax = plt.subplots(figsize=(13, 10), constrained_layout=True)
     for i, (hue_val, offset) in enumerate(zip(hue_levels, offsets)):
         sub = df_plot[df_plot["size (B of params)"] == hue_val]
-
-        # Build arrays aligned to x_labels order
         means = np.array([
             sub.loc[sub["Model"] == m, metric].values[0] if m in sub["Model"].values else 0.0
             for m in x_labels
@@ -375,33 +374,52 @@ def _plot_metric_with_errorbars(df_plot, metric, se_col, out_path, candidate_gro
             sub.loc[sub["Model"] == m, se_col].values[0] if m in sub["Model"].values else 0.0
             for m in x_labels
         ])
-
-        x_pos = x_base #+ offset
-        ax.bar(x_pos, means, width=bar_width, color=palette[i], label=str(hue_val))
-        ax.errorbar(
-            x=x_pos,
-            y=means,
-            yerr=ses,
-            fmt="none",
-            ecolor="black",
-            elinewidth=1,
-            capsize=4,
-            capthick=1,
-        )
+        ax.bar(x_base, means, width=bar_width, color=palette_size[i], label=str(hue_val))
+        ax.errorbar(x=x_base, y=means, yerr=ses, fmt="none", ecolor="black",
+                    elinewidth=1, capsize=4, capthick=1)
 
     ax.set_xticks(x_base)
     ax.set_xticklabels(x_labels, rotation=45, ha="right")
     ax.legend(title="size (B of params)")
     ax.set_ylabel(metric)
-
     fig.suptitle(f"Model {metric}, colored by size, {int(ranks_size)} functions", fontsize=18)
     ax.set_title(f"{candidate_group} (error bars = ±1 SE)", fontsize=10)
+    plt.savefig(f"{out_path}/{metric_safe}_by_model_and_size_{safe_group}.png", dpi=300, bbox_inches="tight")
+    plt.close()
 
-    plt.savefig(
-        f"{out_path}/{metric.replace('@', 'at')}_by_model_and_size_{safe_group}.png",
-        dpi=300,
-        bbox_inches="tight",
-    )
+    # ── Plot 2: one color per model, tab20 by x-position ────────────────────
+    palette_model = sns.color_palette("tab20", n_x)  # <-- n_x, not n_hue
+    palette_model = plt.get_cmap("tab20")
+    #tab20 = plt.get_cmap("tab20")
+    palette_model = [palette_model(i / max(len(x_labels) - 1, 1)) for i in range(len(x_labels))]
+    #colors = [tab20(i / max(len(models) - 1, 1)) for i in range(len(models))]
+
+    fig, ax = plt.subplots(figsize=(16, 12), constrained_layout=True)
+    for i, (hue_val, offset) in enumerate(zip(hue_levels, offsets)):
+        sub = df_plot[df_plot["size (B of params)"] == hue_val]
+        means = np.array([
+            sub.loc[sub["Model"] == m, metric].values[0] if m in sub["Model"].values else 0.0
+            for m in x_labels
+        ])
+        ses = np.array([
+            sub.loc[sub["Model"] == m, se_col].values[0] if m in sub["Model"].values else 0.0
+            for m in x_labels
+        ])
+        # Assign color per x-position, not per hue group
+        bar_colors = [palette_model[j] for j in range(n_x)]
+        for j, (x_pos, mean, se, color) in enumerate(zip(x_base, means, ses, bar_colors)):
+            ax.bar(x_pos, mean, width=bar_width, color=color,
+                   label=x_labels[j] if i == 0 else None)  # label once
+            ax.errorbar(x=x_pos, y=mean, yerr=se, fmt="none", ecolor="black",
+                        elinewidth=1, capsize=4, capthick=1)
+
+    ax.set_xticks(x_base)
+    ax.set_xticklabels(x_labels, rotation=45, ha="right")
+    ax.legend(title="Model", ncol=2)
+    ax.set_ylabel(metric)
+    fig.suptitle(f"Model {metric}, {int(ranks_size)} functions", fontsize=18)
+    ax.set_title(f"{candidate_group} (error bars = ±1 SE)", fontsize=10)
+    plt.savefig(f"{out_path}/{metric_safe}_by_model_{safe_group}.png", dpi=300, bbox_inches="tight")
     plt.close()
 
 def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
@@ -412,6 +430,10 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
     # Create TWO LaTeX tables: one per candidate group
     for candidate_group in candidate_groups:
         df_group = metrics_df[metrics_df["candidate_group"] == candidate_group].copy()
+        df_group.fillna(0, inplace=True)
+        columns_to_drop = [col for col in df_group.columns if "Spearman" in col or "size" in col or "@3" in col]
+        columns_to_drop.append("MRR@5")
+        smaller_df_group = df_group.drop(columns_to_drop, axis=1)
 
         df_group = _attach_metric_se_columns(
             df_group=df_group,
@@ -433,19 +455,43 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
             inplace=True,
         )
 
+        smaller_df_group.rename(
+            columns={
+                "candidate_group": "Candidate Group",
+                "model": "Model",
+            },
+            inplace=True,
+        )
+
         # Use a safe version of the group name for filenames/labels
         safe_group = _get_safe_group(candidate_group=candidate_group)
-        df_group = df_group.drop("Candidate Group", axis=1) # For aesthetics
+        smaller_df_group = smaller_df_group.drop("Candidate Group", axis=1)
+        df_group = df_group.drop("Candidate Group", axis=1) 
 
+
+        col_format = "ll" + "r" * (1 + 2 * len(k_for_recalls))
+        caption = f"MRR, MRR@ k and Recall@ k for {candidate_group}."
+        df_label = f"tab:metrics_{safe_group}"
         # LaTeX table with caption mentioning the candidate group
-        df_group.to_latex(
+        smaller_df_group.to_latex(
             f"{out_path}/metrics_table_{safe_group}.tex",
             index=False,
             float_format="%.4f",
-            column_format="ll" + "r" * (1 + 2 * len(k_for_recalls)),
-            caption=f"MRR, MRR@ k and Recall@ k for {candidate_group}.",
-            label=f"tab:metrics_{safe_group}",
+            column_format=col_format,
+            caption=caption,
+            label=df_label,
         )
+
+        # LaTeX table with caption mentioning the candidate group
+        df_group.to_latex(
+            f"{out_path}/metrics_table_{safe_group}_smaller.tex",
+            index=False,
+            float_format="%.4f",
+            column_format=col_format,
+            caption=caption,
+            label=df_label,
+        )
+        
 
         metrics_cols = [col for col in df_group.columns if ("MRR" in col or "Recall" in col) and ("SE" not in col)]
         for metric in metrics_cols:
@@ -467,7 +513,7 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
 
 
     for candidate_group in candidate_groups:
-        plt.figure(figsize=(12,8),constrained_layout=True)
+        plt.figure(figsize=(10,7),constrained_layout=True)
         palette = sns.color_palette("tab20", n_colors=len(model_names))
         for color, model_name in zip(palette,model_names):
             ranks = all_ranks[(model_name, candidate_group)]

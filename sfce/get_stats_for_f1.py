@@ -12,9 +12,6 @@ import os
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, precision_recall_curve, auc, average_precision_score
 
-###############################################
-# utilities for pair-based splitting
-###############################################
 
 def partner_index(i: int, num_ids: int) -> int:
     """
@@ -137,10 +134,6 @@ def build_pair_based_splits_for_f1(
     }
 
 
-###############################################
-# metrics and F1 optimization
-###############################################
-
 def _precision_recall_f1_from_scores(
     id_scores: np.ndarray,
     ood_scores: np.ndarray,
@@ -214,11 +207,6 @@ def _bootstrap_f1_ci(
     lower = f1_samples[int((alpha / 2) * num_bootstrap)]
     upper = f1_samples[int((1 - alpha / 2) * num_bootstrap)]
     return float(lower), float(upper)
-
-
-###############################################
-# main F1-optimized kNN OOD detector
-###############################################
 
 
 def knn_ood_f1_with_pairs(
@@ -488,10 +476,6 @@ def plot_roc_pr_curves(results_by_model: dict, title_suffix: str = "", save_path
     plt.close()
     return ax_roc, ax_pr
 
-
-###############################################
-# LaTeX summary table
-###############################################
 
 def make_latex_summary_table(results_by_model: dict, caption: str = "OOD Detection Summary", label: str = "tab:ood_summary"):
     """

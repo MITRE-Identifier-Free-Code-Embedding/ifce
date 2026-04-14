@@ -88,6 +88,6 @@ def train(ds_path : str, model_name: str):
 
 
 if __name__ == "__main__":
-    DS_PATH = "/home/ewolos/semantic-free-code-embedding/data/decompiled_summaries_TRAIN"
+    DS_PATH = f"{os.path.expanduser("~")}/semantic-free-code-embedding/data/decompiled_summaries_TRAIN"
     model_name = "Qwen/Qwen3-Embedding-0.6B"
     train(ds_path=DS_PATH, model_name = model_name)
