@@ -1,4 +1,3 @@
-from ast import Break
 from datasets import load_from_disk
 from add_embeddings import yaml_safe_load
 from pandas import DataFrame
@@ -8,7 +7,6 @@ import torch
 import torch.nn.functional as F
 import pathlib
 from sklearn.metrics import pairwise_distances
-import os
 from torch.utils.data import DataLoader
 
 

@@ -155,14 +155,14 @@ def extrapolate_to_target(elapsed_s: float, actual_count: int) -> float:
 
 
 def main(
-    model_config_path: str = "",
-    data_directory: str = "",
+    model_config_path: str,
+    data_directory: str,
     batch_size: int = 64,
-    out_path: str = "experiment_results",
+    out_path_name: str = "experiment_results",
 ):
     device = "cuda"
     yaml_config = yaml_safe_load(model_config_path)
-    out_path = Path(out_path)
+    out_path = Path(__file__).resolve().parent / Path(out_path_name)
     out_path.mkdir(parents=True, exist_ok=True)
 
     all_mem_stats = {}
@@ -211,7 +211,7 @@ def main(
             print(
                 f"  {model} | {key}: "
                 f"{elapsed[key]:.2f}s for {total_embedded[key]} samples "
-                f"→ ~{timing_results[model][key]:.1f}s per {TARGET_EMBED_COUNT:,}"
+                f" ~{timing_results[model][key]:.1f}s per {TARGET_EMBED_COUNT:,}"
             )
 
     plot_embed_times(timing_results, out_path)

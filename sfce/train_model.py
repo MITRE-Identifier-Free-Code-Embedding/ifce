@@ -1,5 +1,4 @@
 from datasets import load_from_disk
-from copy import deepcopy
 from sentence_transformers.losses import (
     CachedMultipleNegativesRankingLoss,
     MultipleNegativesRankingLoss,

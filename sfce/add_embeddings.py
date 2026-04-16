@@ -10,7 +10,6 @@ from sklearn.manifold import TSNE
 import os
 from pathlib import Path
 from torch import Tensor, is_tensor, cuda
-from vllm.distributed.parallel_state import destroy_model_parallel
 import gc
 
 """
@@ -341,6 +340,3 @@ if __name__ == "__main__":
     CONFIG_PATH = f"{os.path.expanduser("~")}/semantic-free-code-embedding/config/experiment_config.yaml"
     BATCH_SIZE = 64
     just_embeddings(data_directory=DATA_DIR, model_config_path=CONFIG_PATH)
-    # create_embeddings(data_directory = DATA_DIR,
-    #                  model_config_path = CONFIG_PATH,
-    #                  batch_size = BATCH_SIZE)

@@ -1,13 +1,8 @@
 import os
-
-DATA_DIR = (
-    f"{os.path.expanduser("~")}/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy"
-)
-
+from sfce.conduct_experiment import conduct_experiment
 
 def main():
-    print("Hello from semantic-free-code-embedding!")
-
+    conduct_experiment()
 
 if __name__ == "__main__":
     main()

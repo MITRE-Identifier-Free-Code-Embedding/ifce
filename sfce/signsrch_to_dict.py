@@ -2,7 +2,6 @@ from time import sleep
 import re
 import sys
 
-from transformers import MODEL_NAMES_MAPPING
 from add_embeddings import yaml_safe_load
 from models import MODEL_CLASS_MAP
 from tqdm import tqdm
@@ -10,16 +9,13 @@ import pandas as pd
 import numpy as np
 import torch
 import pickle
-import pathlib
 from find_distances import cosine_matrix_calculation
 from joblib import Parallel, delayed
 import os
 import itertools
 import joblib
 from scipy import stats
-import matplotlib.pyplot as plt
 from pathlib import Path
-from pprint import pprint
 from signsrch_visualizations import (
     plot_group_map_bars,
     plot_wilcoxon_pvalue_heatmap,
@@ -612,7 +608,7 @@ def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
     )
 
 
-def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None):
+def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None, batch_size: int = 512):
 
     # Takes one input arg: path to signsrch.sig file
     if len(sys.argv) < 2 and signsrch_path == None:
@@ -626,7 +622,7 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None):
     for name, data in sigs.items():
         split_set = set(
             data.split(", ")
-        )  # TODO for temporary testing, remove eventually
+        ) 
         sigs[name] = split_set
 
     reversed_sigs = {}
@@ -642,8 +638,6 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None):
 
     device = "cuda"
     yaml_config = yaml_safe_load(model_config_path)
-    max_attempts = 5
-    batch_size = 512
     cpu_count = os.cpu_count()
     embedding_dictionary_keys = set(sigs.keys())
     for _, data in sigs.items():
@@ -671,16 +665,10 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None):
         )
         df.attrs["model"] = model_name
         df.attrs["embedding_size"] = embeddings.shape[1]
-        new_file_path = (
-            pathlib.Path(__file__).parent.parent.resolve()
-            / "data"
-            / f"signsrch_cosine_{model_name}.parquet"
-        )
-        # df.to_parquet(new_file_path)
 
         # Experiment 1: for each algorithm, rank constants
 
-        procs = int(cpu_count * 7 / 8)
+        procs = int(cpu_count * 7 / 8) # we arbitrarily select 7/8s of the available pool
         APs = []
 
         sorted_keys = sorted(sigs.keys())
@@ -729,13 +717,6 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None):
             row_rank_ids, all_constants, sigs, reversed_sigs
         )
 
-        # group_aps_exp2[model_name] = get_group_MAPs(
-        #    df_no_algo_classes=df_no_algo_classes,
-        #    sigs=sigs,
-        #    reversed_sigs=reversed_sigs,
-        #    procs=procs,
-        # )
-
         # Flat list of per-group MAPs — one value per group, equal weight
         AP_dict_exp2[model_name] = group_aps_to_MAPs(group_aps_exp2[model_name])
 
@@ -749,5 +730,5 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None):
     print(f"Completed Signsrch Experiments")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": # retained for debugging
     run_signsrch_exps(model_config_path="../config/experiment_config.yaml")
