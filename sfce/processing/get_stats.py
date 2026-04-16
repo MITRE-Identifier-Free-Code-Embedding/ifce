@@ -1,15 +1,8 @@
-from pathlib import Path
 from find_cosine_sim import find_cosine_sim
-import sys
-from datasets import load_from_disk
-from add_embeddings import yaml_safe_load
 import numpy as np
 import pandas as pd
 import math
 
-###############################################
-# Step 2: utilities for pair-based splitting
-###############################################
 
 def partner_index(i: int, num_ids: int) -> int:
     """
@@ -37,7 +30,9 @@ def _compute_knn_nonconformity(
     Distance is 1 - cosine similarity.
     """
     if len(idx_reference) < k:
-        raise ValueError(f"k={k} is larger than number of reference points={len(idx_reference)}")
+        raise ValueError(
+            f"k={k} is larger than number of reference points={len(idx_reference)}"
+        )
 
     # Submatrix of cosine sims between points and reference set
     sims = cosine_matrix[np.ix_(idx_points, idx_reference)]
@@ -84,9 +79,11 @@ def _wilson_interval(
     # 1.96 ≈ z_{0.975} for 95% CI
     z = 1.96 if abs(alpha - 0.05) < 1e-9 else 1.96
     phat = num_success / num_total
-    denom = 1.0 + z ** 2 / num_total
-    center = (phat + z ** 2 / (2.0 * num_total)) / denom
-    half_width = (z * math.sqrt(phat * (1.0 - phat) / num_total + z ** 2 / (4.0 * num_total ** 2))) / denom
+    denom = 1.0 + z**2 / num_total
+    center = (phat + z**2 / (2.0 * num_total)) / denom
+    half_width = (
+        z * math.sqrt(phat * (1.0 - phat) / num_total + z**2 / (4.0 * num_total**2))
+    ) / denom
     return (max(0.0, center - half_width), min(1.0, center + half_width))
 
 
@@ -144,15 +141,23 @@ def build_pair_based_splits(
     ood_candidates = np.array(ood_candidates, dtype=int)
 
     if len(id_candidates) == 0:
-        raise ValueError("No ID candidates: no candidate id has its pair in the train set.")
+        raise ValueError(
+            "No ID candidates: no candidate id has its pair in the train set."
+        )
     if len(ood_candidates) == 0:
-        raise ValueError("No OOD candidates: all candidate ids have their pair in the train set.")
+        raise ValueError(
+            "No OOD candidates: all candidate ids have their pair in the train set."
+        )
 
     # Split ID candidates into calibration and ID test (50/50 by default)
     rng.shuffle(id_candidates)
     n_calib = max(1, len(id_candidates) // 2)
     ID_calib = np.sort(id_candidates[:n_calib])
-    ID_test = np.sort(id_candidates[n_calib:]) if len(id_candidates) > n_calib else np.array([], dtype=int)
+    ID_test = (
+        np.sort(id_candidates[n_calib:])
+        if len(id_candidates) > n_calib
+        else np.array([], dtype=int)
+    )
 
     # Split OOD candidates into OOD_val and OOD_test
     rng.shuffle(ood_candidates)
@@ -160,7 +165,9 @@ def build_pair_based_splits(
         raise ValueError("ood_val_frac must be in (0,1)")
 
     n_val_ood = int(round(ood_val_frac * len(ood_candidates)))
-    n_val_ood = max(1, min(n_val_ood, len(ood_candidates) - 1))  # ensure both splits non-empty
+    n_val_ood = max(
+        1, min(n_val_ood, len(ood_candidates) - 1)
+    )  # ensure both splits non-empty
     OOD_val = np.sort(ood_candidates[:n_val_ood])
     OOD_test = np.sort(ood_candidates[n_val_ood:])
 
@@ -172,10 +179,6 @@ def build_pair_based_splits(
         "OOD_test": OOD_test,
     }
 
-
-###############################################
-# Step 3: inductive conformal kNN anomaly detection
-###############################################
 
 def knn_conformal_ood_with_pairs(
     cosine_parquet_path: str,
@@ -263,7 +266,7 @@ def knn_conformal_ood_with_pairs(
             idx_reference=ID_train,
             k=k,
         )
-        detected_val = (ood_val_scores > tau)
+        detected_val = ood_val_scores > tau
         tpr_ood_val = detected_val.mean() if len(detected_val) > 0 else np.nan
 
         val_results[k] = {
@@ -292,10 +295,12 @@ def knn_conformal_ood_with_pairs(
         idx_reference=ID_train,
         k=best_k,
     )
-    detected_ood_test = (ood_test_scores > best_tau)
+    detected_ood_test = ood_test_scores > best_tau
     num_ood_test = len(OOD_test)
     num_detected_ood_test = int(detected_ood_test.sum())
-    tpr_ood_test = num_detected_ood_test / num_ood_test if num_ood_test > 0 else float("nan")
+    tpr_ood_test = (
+        num_detected_ood_test / num_ood_test if num_ood_test > 0 else float("nan")
+    )
     ci_low, ci_high = _wilson_interval(
         num_success=num_detected_ood_test,
         num_total=num_ood_test,
@@ -310,7 +315,7 @@ def knn_conformal_ood_with_pairs(
             idx_reference=ID_train,
             k=best_k,
         )
-        id_test_flags = (id_test_scores > best_tau)
+        id_test_flags = id_test_scores > best_tau
         empirical_fpr_id_test = id_test_flags.mean()
     else:
         empirical_fpr_id_test = float("nan")
@@ -342,22 +347,23 @@ def knn_conformal_ood_with_pairs(
     return results
 
 
-def main(model_list = ["Qwen3-Embedding-0.6B"], 
-         similarity_files=["../data/cosine_Qwen3-Embedding-0.6B.parquet"]):
+def main(
+    model_list=["Qwen3-Embedding-0.6B"],
+    similarity_files=["../data/cosine_Qwen3-Embedding-0.6B.parquet"],
+):
 
-    if not model_list:    
+    if not model_list:
         # 1) Build cosine similarity parquet files (per model)
         model_list, similarity_files = find_cosine_sim(
             data_input_dir="path/to/hf_dataset",
             model_config_path="path/to/models.yaml",
         )
 
-
     # 2) Inductive conformal kNN OOD detection per model, using pair structure
     k_list = [1, 3, 5, 10, 20, 50]
     epsilon = 0.05  # target ID false positive rate
-    train_frac = 0.5      # fraction of ids used as kNN reference set
-    ood_val_frac = 0.5    # fraction of OOD candidates used for validation vs test
+    train_frac = 0.5  # fraction of ids used as kNN reference set
+    ood_val_frac = 0.5  # fraction of OOD candidates used for validation vs test
 
     for model, cosine_path in zip(model_list, similarity_files):
         results = knn_conformal_ood_with_pairs(
@@ -374,11 +380,15 @@ def main(model_list = ["Qwen3-Embedding-0.6B"],
         print("Validation TPR per k:")
         for k in sorted(k_list):
             vr = results["val_results"][k]
-            print(f"  k={k}: TPR_OOD_val={vr['tpr_ood_val']:.3f}, num_OOD_val={vr['num_ood_val']}")
+            print(
+                f"  k={k}: TPR_OOD_val={vr['tpr_ood_val']:.3f}, num_OOD_val={vr['num_ood_val']}"
+            )
         tr = results["test_results"]
         print(f"Test OOD detection probability P(detect|OOD)={tr['tpr_ood_test']:.3f}")
         print(f"95% CI (Wilson): {tr['tpr_ci_95']}")
-        print(f"Empirical ID FPR on ID_test={tr['empirical_fpr_id_test']:.3f} over {tr['num_id_test']} points")
+        print(
+            f"Empirical ID FPR on ID_test={tr['empirical_fpr_id_test']:.3f} over {tr['num_id_test']} points"
+        )
         print(f"Chosen threshold tau={tr['threshold']:.4f}")
 
 

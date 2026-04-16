@@ -14,109 +14,124 @@ import time
 import signal
 import requests
 from openai import OpenAI
-# TODO change type annotations to reflect model return types
 
-THIS_FILES_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+THIS_FILES_PARENT_DIRECTORY = Path(os.path.dirname(os.path.abspath(__file__))).parent
+
 
 class EmbeddingModel:
-    def __init__(self, name:str, device: str = "cpu"):
+    def __init__(self, name: str, device: str = "cpu"):
         self.name = name
         self.device = device
         self.model = None
 
-    def embed(self, str_to_embed:str) -> List[float]:
+    def embed(self, str_to_embed: str) -> List[float]:
         raise NotImplementedError
 
-    def embed_batch(self, strs_to_embed:List[str]) -> List[List[float]]:
+    def embed_batch(self, strs_to_embed: List[str]) -> List[List[float]]:
         raise NotImplementedError
-    
+
     def parameter_count(self) -> int:
-        if self.model == None:
+        if self.model is None:
             raise ValueError("Model must be instantiated")
         return sum(p.numel() for p in self.model.model.parameters())
 
 
 class HFEmbeddingModel(EmbeddingModel):
-        
-    def _infer(self,encoded_input):
-            with torch.no_grad():
-                model_output = self.model(**encoded_input)
-                # Perform pooling. In this case, cls pooling.
-                sentence_embeddings = model_output[0][:, 0]
-                sentence_embeddings = torch.nn.functional.normalize(sentence_embeddings, p=2, dim=1)
-            return sentence_embeddings.to('cpu').tolist()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _infer(self, encoded_input):
+        with torch.no_grad():
+            model_output = self.model(**encoded_input)
+            # Perform pooling. In this case, cls pooling.
+            sentence_embeddings = model_output[0][:, 0]
+            sentence_embeddings = torch.nn.functional.normalize(
+                sentence_embeddings, p=2, dim=1
+            )
+        return sentence_embeddings.to("cpu").tolist()
 
     def embed(self, str_to_embed: str) -> List[float]:
-        encoded_input = self.tokenizer([str_to_embed], 
-                                       padding=True, 
-                                       truncation=True, 
-                                       return_tensors='pt').to(self.device)
+        encoded_input = self.tokenizer(
+            [str_to_embed], padding=True, truncation=True, return_tensors="pt"
+        ).to(self.device)
         return self._infer(encoded_input)
 
-    def embed_batch(self, strs_to_embed:List[str]) -> List[List[float]]:
-        encoded_input = self.tokenizer(strs_to_embed, 
-                                       padding=True, 
-                                       truncation=True, 
-                                       return_tensors='pt').to(self.device)
+    def embed_batch(self, strs_to_embed: List[str]) -> List[List[float]]:
+        encoded_input = self.tokenizer(
+            strs_to_embed, padding=True, truncation=True, return_tensors="pt"
+        ).to(self.device)
         return self._infer(encoded_input)
-    
+
     def parameter_count(self) -> int:
         return sum(p.numel() for p in self.model.model.model.parameters())
-    
+
+
 class HFBGEEmbeddingModel(HFEmbeddingModel):
-    def __init__(self,
-                 model_tokenizer_hf_name: str | None = None, 
-                 device: str = "cpu",
-                 **kwargs):
+    def __init__(
+        self, model_tokenizer_hf_name: str | None = None, device: str = "cpu", **kwargs
+    ):
         super().__init__(**kwargs)
         self.device = device
         self.model_hf_name = f"BAAI/{self.name}"
-        self.model = AutoModel.from_pretrained(self.model_hf_name,
-                                               device_map=device).eval()
-        self.tokenizer = AutoTokenizer.from_pretrained(model_tokenizer_hf_name if model_tokenizer_hf_name is not None else self.model_hf_name)
+        self.model = AutoModel.from_pretrained(
+            self.model_hf_name, device_map=device
+        ).eval()
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_tokenizer_hf_name
+            if model_tokenizer_hf_name is not None
+            else self.model_hf_name
+        )
+
 
 class Qwen3HFEmbeddingModel(HFEmbeddingModel):
-    def __init__(self,
-                 model_tokenizer_hf_name: str | None = None, 
-                 device: str = "cpu",
-                 **kwargs):
+    def __init__(
+        self, model_tokenizer_hf_name: str | None = None, device: str = "cpu", **kwargs
+    ):
         super().__init__(**kwargs)
         self.device = device
         self.model_hf_name = f"Qwen/{self.name}"
-        self.model = AutoModel.from_pretrained(self.model_hf_name,
-                                               device_map=device).eval()
-        self.tokenizer = AutoTokenizer.from_pretrained(model_tokenizer_hf_name if model_tokenizer_hf_name is not None else self.model_hf_name)
+        self.model = AutoModel.from_pretrained(
+            self.model_hf_name, device_map=device
+        ).eval()
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_tokenizer_hf_name
+            if model_tokenizer_hf_name is not None
+            else self.model_hf_name
+        )
+
 
 class CustomHFEmbeddingModel(HFEmbeddingModel):
-    def __init__(self, name: str, device:str = "cpu"):
+    def __init__(self, name: str, device: str = "cpu"):
         super().__init__(name=name, device=device)
-        models_path = Path(THIS_FILES_DIRECTORY) / "models" / name
+        models_path = Path(THIS_FILES_PARENT_DIRECTORY) / "models" / name
         self.model = AutoModel.from_pretrained(models_path, device_map=device).eval()
         self.tokenizer = AutoTokenizer.from_pretrained(models_path)
 
 
 class HFBGE3EmbeddingModel(EmbeddingModel):
-    def __init__(self, 
-                 name:str = 'bge-m3', 
-                 device:str = "cpu", **kwargs):
+    def __init__(self, name: str = "bge-m3", device: str = "cpu", **kwargs):
         super().__init__(name, device, **kwargs)
         self.model = BGEM3FlagModel(f"BAAI/{name}", use_fp16=True)
 
     def embed(self, str_to_embed: str) -> List[float]:
-        result = self.model.encode([str_to_embed], 
-                                       batch_size=1, 
-                                       max_length=8192,)["dense_vecs"]
-        return result.tolist()
-    
-    def embed_batch(self, strs_to_embed:List[str]) -> List[List[float]]:
-        result = self.model.encode(strs_to_embed, 
-                                       batch_size=len(strs_to_embed), 
-                                       max_length=8192,)["dense_vecs"]
+        result = self.model.encode(
+            [str_to_embed],
+            batch_size=1,
+            max_length=8192,
+        )["dense_vecs"]
         return result.tolist()
 
-# TODO add Qwen3 models w / wo "prompting"?
+    def embed_batch(self, strs_to_embed: List[str]) -> List[List[float]]:
+        result = self.model.encode(
+            strs_to_embed,
+            batch_size=len(strs_to_embed),
+            max_length=8192,
+        )["dense_vecs"]
+        return result.tolist()
+
+
 class Qwen3EmbeddingModel(EmbeddingModel):
-    def __init__(self, name:str, device:str = "cpu", prompting=False, **kwargs):
+    def __init__(self, name: str, device: str = "cpu", prompting=False, **kwargs):
         super().__init__(name=name)
         possible_models = ["Qwen3-Embedding-0.6B", "Qwen3-Embedding-8B"]
         if self.name not in possible_models:
@@ -125,30 +140,40 @@ class Qwen3EmbeddingModel(EmbeddingModel):
         self.task_description = "Given a source code function or a decompiled code, find the respective opposite representation of source code or decompilation that is equivalent."
         self.model = LLM(model=f"Qwen/{self.name}")
         self.truncate_length = self.model.model_config.max_model_len - 1
-    
+
     def _potentially_add_query(self, str_or_strs: str | List[str]) -> str | List[str]:
         if isinstance(str_or_strs, str):
-            str_or_strs = self._get_detailed_instruct(str_or_strs) if self.prompting else str_or_strs
+            str_or_strs = (
+                self._get_detailed_instruct(str_or_strs)
+                if self.prompting
+                else str_or_strs
+            )
         elif isinstance(str_or_strs, list):
-            str_or_strs = [self._get_detailed_instruct(item) if self.prompting else item for item in str_or_strs]
+            str_or_strs = [
+                self._get_detailed_instruct(item) if self.prompting else item
+                for item in str_or_strs
+            ]
         return str_or_strs
 
     def embed(self, str_to_embed: str) -> List[float]:
         str_to_embed = self._potentially_add_query(str_to_embed)
-        outputs = self.model.embed([str_to_embed], 
-                                   truncate_prompt_tokens=self.truncate_length,
-                                   use_tqdm=False)
+        outputs = self.model.embed(
+            [str_to_embed], truncate_prompt_tokens=self.truncate_length, use_tqdm=False
+        )
         return [np.array(o.outputs.embedding) for o in outputs]
 
-    def embed_batch(self, strs_to_embed:List[str]) -> List[List[float]]:
+    def embed_batch(self, strs_to_embed: List[str]) -> List[List[float]]:
         strs_to_embed = self._potentially_add_query(strs_to_embed)
-        outputs = self.model.embed(strs_to_embed, 
-                                   truncate_prompt_tokens=self.truncate_length, # Without the -1, vllm stalls indef.
-                                   use_tqdm=False)
+        outputs = self.model.embed(
+            strs_to_embed,
+            truncate_prompt_tokens=self.truncate_length,  # Without the -1, vllm stalls indef.
+            use_tqdm=False,
+        )
         return [np.array(o.outputs.embedding) for o in outputs]
 
     def _get_detailed_instruct(self, query: str) -> str:
-        return f'Instruct: {self.task_description}\nQuery:{query}'
+        return f"Instruct: {self.task_description}\nQuery:{query}"
+
 
 class OnlineQwen3EmbeddingModel(EmbeddingModel):
     """
@@ -158,8 +183,8 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
     """
 
     DEFAULT_PORT = 8000
-    HEALTH_TIMEOUT = 300   # seconds to wait for the server to become ready
-    HEALTH_INTERVAL = 2    # seconds between readiness polls
+    HEALTH_TIMEOUT = 300  # seconds to wait for the server to become ready
+    HEALTH_INTERVAL = 2  # seconds between readiness polls
 
     def __init__(
         self,
@@ -189,29 +214,26 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
         )
 
         self.client = OpenAI(
-            api_key="EMPTY",
-            base_url=f"http://localhost:{self.port}/v1",
-            timeout=60.0
+            api_key="EMPTY", base_url=f"http://localhost:{self.port}/v1", timeout=60.0
         )
 
         models_response = self.client.models.list()
         matched = next(
-            (m for m in models_response.data if m.id == f"Qwen/{self.name}"),
-            None
+            (m for m in models_response.data if m.id == f"Qwen/{self.name}"), None
         )
         # vLLM doesn't expose max_model_len via the OpenAI models API,
         # so fall back to the value passed in or a safe default
         self.truncate_length = (max_model_len - 1) if max_model_len else 32767
 
-    # ------------------------------------------------------------------
-    # Server lifecycle
-    # ------------------------------------------------------------------
-
     def _start_server(self, device, gpu_memory_utilization, max_model_len, **kwargs):
         cmd = [
-            "vllm", "serve", f"Qwen/{self.name}",
-            "--port", str(self.port),
-            "--gpu-memory-utilization", str(gpu_memory_utilization),
+            "vllm",
+            "serve",
+            f"Qwen/{self.name}",
+            "--port",
+            str(self.port),
+            "--gpu-memory-utilization",
+            str(gpu_memory_utilization),
         ]
         if max_model_len is not None:
             cmd += ["--max-model-len", str(max_model_len)]
@@ -248,7 +270,6 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
         except Exception as e:
             return f"<could not read log file {self._log_file_path}: {e}>"
 
-
     def _wait_for_ready(self) -> None:
         url = f"http://localhost:{self.port}/v1/models"
         deadline = time.monotonic() + self.HEALTH_TIMEOUT
@@ -278,7 +299,6 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
             f"--------------------------"
         )
 
-
     def _shutdown(self) -> None:
         if self._process is None:
             return
@@ -294,10 +314,6 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
             self._log_file = None
         self._process = None
 
-    # ------------------------------------------------------------------
-    # Context-manager support  (with Qwen3EmbeddingModel(...) as m: ...)
-    # ------------------------------------------------------------------
-
     def __enter__(self):
         return self
 
@@ -307,26 +323,19 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
     def __del__(self):
         self._shutdown()
 
-    # ------------------------------------------------------------------
-    # Prompting helpers  (unchanged from original)
-    # ------------------------------------------------------------------
-
     def _get_detailed_instruct(self, text: str) -> str:
         return f"Instruct: {self.task_description}\nQuery: {text}"
 
-    def _potentially_add_query(
-        self, str_or_strs: str | List[str]
-    ) -> str | List[str]:
+    def _potentially_add_query(self, str_or_strs: str | List[str]) -> str | List[str]:
         if isinstance(str_or_strs, str):
-            return self._get_detailed_instruct(str_or_strs) if self.prompting else str_or_strs
+            return (
+                self._get_detailed_instruct(str_or_strs)
+                if self.prompting
+                else str_or_strs
+            )
         return [
-            self._get_detailed_instruct(s) if self.prompting else s
-            for s in str_or_strs
+            self._get_detailed_instruct(s) if self.prompting else s for s in str_or_strs
         ]
-
-    # ------------------------------------------------------------------
-    # Embedding API
-    # ------------------------------------------------------------------
 
     def embed(self, str_to_embed: str) -> np.ndarray:
         str_to_embed = self._potentially_add_query(str_to_embed)
@@ -351,6 +360,7 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
 
 class OnlineCustomEmbeddingModel(OnlineQwen3EmbeddingModel):
     DEFAULT_PORT = 8000
+
     def __init__(
         self,
         name: str,
@@ -364,12 +374,17 @@ class OnlineCustomEmbeddingModel(OnlineQwen3EmbeddingModel):
         self.quantization = kwargs["quantization"] if "quantization" in kwargs else None
         super().__init__(name=name)
         self.former_name = "Qwen/Qwen3-Embedding-0.6B"
+
     def _start_server(self, device, gpu_memory_utilization, max_model_len, **kwargs):
-        self.model_path = Path(THIS_FILES_DIRECTORY) / "models" / self.name
+        self.model_path = Path(THIS_FILES_PARENT_DIRECTORY) / "models" / self.name
         cmd = [
-            "vllm", "serve", f"{self.model_path}",
-            "--port", str(self.port),
-            "--gpu-memory-utilization", str(gpu_memory_utilization),
+            "vllm",
+            "serve",
+            f"{self.model_path}",
+            "--port",
+            str(self.port),
+            "--gpu-memory-utilization",
+            str(gpu_memory_utilization),
         ]
         if self.quantization:
             cmd.extend(["-q", self.quantization])
@@ -412,74 +427,93 @@ class OnlineCustomEmbeddingModel(OnlineQwen3EmbeddingModel):
         )
         # The API returns items sorted by index, so ordering is preserved
         return [np.array(item.embedding) for item in response.data]
-    
+
+
 class CustomEmbeddingModelVLLM(EmbeddingModel):
-    def __init__(self, name:str, device:str = "cpu", prompting=False, **kwargs):
+    def __init__(self, name: str, device: str = "cpu", prompting=False, **kwargs):
         super().__init__(name=name)
-        
+
         self.prompting = prompting
         self.task_description = "Given a source code function or a decompiled code, find the respective opposite representation of source code or decompilation that is equivalent."
-        self.model_path = Path(THIS_FILES_DIRECTORY) / "models" / self.name
+        self.model_path = Path(THIS_FILES_PARENT_DIRECTORY) / "models" / self.name
         self.model = LLM(model=str(self.model_path))
         self.truncate_length = self.model.model_config.max_model_len - 1
-    
+
     def _potentially_add_query(self, str_or_strs: str | List[str]) -> str | List[str]:
         if isinstance(str_or_strs, str):
-            str_or_strs = self._get_detailed_instruct(str_or_strs) if self.prompting else str_or_strs
+            str_or_strs = (
+                self._get_detailed_instruct(str_or_strs)
+                if self.prompting
+                else str_or_strs
+            )
         elif isinstance(str_or_strs, list):
-            str_or_strs = [self._get_detailed_instruct(item) if self.prompting else item for item in str_or_strs]
+            str_or_strs = [
+                self._get_detailed_instruct(item) if self.prompting else item
+                for item in str_or_strs
+            ]
         return str_or_strs
 
     def embed(self, str_to_embed: str) -> List[float]:
         str_to_embed = self._potentially_add_query(str_to_embed)
-        outputs = self.model.embed([str_to_embed], 
-                                   truncate_prompt_tokens=self.truncate_length,
-                                   use_tqdm=False)
+        outputs = self.model.embed(
+            [str_to_embed], truncate_prompt_tokens=self.truncate_length, use_tqdm=False
+        )
         return [np.array(o.outputs.embedding) for o in outputs]
 
-    def embed_batch(self, strs_to_embed:List[str]) -> List[List[float]]:
+    def embed_batch(self, strs_to_embed: List[str]) -> List[List[float]]:
         strs_to_embed = self._potentially_add_query(strs_to_embed)
-        outputs = self.model.embed(strs_to_embed, 
-                                   truncate_prompt_tokens=self.truncate_length, # Without the -1, vllm stalls indef.
-                                   use_tqdm=False)
+        outputs = self.model.embed(
+            strs_to_embed,
+            truncate_prompt_tokens=self.truncate_length,  # Without the -1, vllm stalls indef.
+            use_tqdm=False,
+        )
         return [np.array(o.outputs.embedding) for o in outputs]
 
     def _get_detailed_instruct(self, query: str) -> str:
-        return f'Instruct: {self.task_description}\nQuery:{query}'
+        return f"Instruct: {self.task_description}\nQuery:{query}"
+
 
 class GemmaEmbeddingModel(EmbeddingModel):
-    def __init__(self, name: str, device:str = "cpu"):
+    def __init__(self, name: str, device: str = "cpu"):
         super().__init__(name, device=device)
-        self.model = SentenceTransformer(model_name_or_path=f"google/{self.name}", device=self.device)
+        self.model = SentenceTransformer(
+            model_name_or_path=f"google/{self.name}", device=self.device
+        )
 
-    def embed(self, str_to_embed:str ):
-        embedding = self.model.encode_document([str_to_embed]) # There are other functions, like encode_query. What to do about them?
+    def embed(self, str_to_embed: str):
+        embedding = self.model.encode_document(
+            [str_to_embed]
+        )  # There are other functions, like encode_query. What to do about them?
         return embedding
-    
 
-    def embed_batch(self, strs_to_embed:List[str]):
-        embeddings = self.model.encode_document(strs_to_embed) # There are other functions, like encode_query. What to do about them?
+    def embed_batch(self, strs_to_embed: List[str]):
+        embeddings = self.model.encode_document(
+            strs_to_embed
+        )  # There are other functions, like encode_query. What to do about them?
         return embeddings
-    
+
 
 class BaseSentenceTransformerModel(EmbeddingModel):
-    def __init__(self, name: str, base_name: str, device:str = "cpu", **kwargs):
+    def __init__(self, name: str, base_name: str, device: str = "cpu", **kwargs):
         super().__init__(name=name, device=device)
         self.base_name = base_name
-        self.model = SentenceTransformer(model_name_or_path=f"{base_name}/{self.name}", 
-                                        device=self.device, **kwargs)
+        self.model = SentenceTransformer(
+            model_name_or_path=f"{base_name}/{self.name}", device=self.device, **kwargs
+        )
 
-    def embed(self, str_to_embed:str ) -> np.ndarray:
+    def embed(self, str_to_embed: str) -> np.ndarray:
         embedding = self.model.encode([str_to_embed])
         return embedding
-    
-    def embed_batch(self, strs_to_embed:List[str]) -> np.ndarray:
+
+    def embed_batch(self, strs_to_embed: List[str]) -> np.ndarray:
         embeddings = self.model.encode(strs_to_embed)
         return embeddings
 
-    def embed_batch_as_smaller_pieces(self, strs_to_embed:List[str]) -> np.ndarray:
+    def embed_batch_as_smaller_pieces(self, strs_to_embed: List[str]) -> np.ndarray:
         mini_bs = 4
-        if len(strs_to_embed) > mini_bs: # it's so large, we manage batching smaller than others
+        if (
+            len(strs_to_embed) > mini_bs
+        ):  # it's so large, we manage batching smaller than others
             all_embeddings = []
             for batch in itertools.batched(strs_to_embed, mini_bs):
                 all_embeddings.extend(self.model.encode(list(batch)))
@@ -487,74 +521,89 @@ class BaseSentenceTransformerModel(EmbeddingModel):
         else:
             all_embeddings = self.model.encode(strs_to_embed)
             return all_embeddings
-    
+
 
 class SnowflakeEmbeddingModel(BaseSentenceTransformerModel):
-    def __init__(self, name: str, base_name: str = "Snowflake", device:str = "cpu"):
+    def __init__(self, name: str, base_name: str = "Snowflake", device: str = "cpu"):
         super().__init__(name=name, base_name=base_name, device=device)
+
 
 class SalesforceEmbeddingModel(BaseSentenceTransformerModel):
-    def __init__(self, name: str, base_name: str = "Salesforce", device:str = "cpu"):
+    def __init__(self, name: str, base_name: str = "Salesforce", device: str = "cpu"):
         super().__init__(name=name, base_name=base_name, device=device)
+
 
 class NomicAIEmbeddingModel(BaseSentenceTransformerModel):
-    def __init__(self, name: str, 
-                base_name: str = "nomic-ai", 
-                device:str = "cpu", 
-                model_kwargs={"dtype":"bfloat16"}):
-        super().__init__(name=name, base_name=base_name, device=device,model_kwargs=model_kwargs)
+    def __init__(
+        self,
+        name: str,
+        base_name: str = "nomic-ai",
+        device: str = "cpu",
+        model_kwargs={"dtype": "bfloat16"},
+    ):
+        super().__init__(
+            name=name, base_name=base_name, device=device, model_kwargs=model_kwargs
+        )
 
-    # TODO this might be confusing.
-    def embed_batch(self, strs_to_embed:List[str]) -> np.ndarray:
-        return self.embed_batch_as_smaller_pieces(strs_to_embed=strs_to_embed)        
-    
+    def embed_batch(self, strs_to_embed: List[str]) -> np.ndarray:
+        if isinstance(strs_to_embed, str):
+            raise TypeError("embed_batch must take a list of strs")
+        return self.embed_batch_as_smaller_pieces(strs_to_embed=strs_to_embed)
+
 
 class JinaAIEmbeddingModel(BaseSentenceTransformerModel):
-    def __init__(self, name: str, base_name: str = "jinaai", device:str = "cpu"):
+    def __init__(self, name: str, base_name: str = "jinaai", device: str = "cpu"):
         super().__init__(name=name, base_name=base_name, device=device)
+
 
 class CodeSageEmbeddingModel(BaseSentenceTransformerModel):
-    def __init__(self, name: str, base_name: str = "codesage", device:str = "cpu"):
+    def __init__(self, name: str, base_name: str = "codesage", device: str = "cpu"):
         super().__init__(name=name, base_name=base_name, device=device)
+
 
 class BinSeekEmbeddingModel(BaseSentenceTransformerModel):
-    def __init__(self, name:str, base_name: str = "XingTuLab", device:str = "cpu"):
+    def __init__(self, name: str, base_name: str = "XingTuLab", device: str = "cpu"):
         super().__init__(name=name, base_name=base_name, device=device)
 
 
-MODEL_CLASS_MAP = {"bge-small-en-v1.5": HFBGEEmbeddingModel,
-                    "bge-base-en-v1.5": HFBGEEmbeddingModel,
-                    "bge-large-en-v1.5": HFBGEEmbeddingModel,
-                    "bge-m3": HFBGE3EmbeddingModel,
-                    "Qwen3-Embedding-0.6B": OnlineQwen3EmbeddingModel,
-                    "Qwen3-Embedding-8B": OnlineQwen3EmbeddingModel,
-                    "embeddinggemma-300m": GemmaEmbeddingModel,
-                    "snowflake-arctic-embed-l-v2.0": SnowflakeEmbeddingModel,
-                    "SFR-Embedding-Mistral": SalesforceEmbeddingModel,
-                    "nomic-embed-code": NomicAIEmbeddingModel,
-                    "jina-embeddings-v2-base-code": JinaAIEmbeddingModel,
-                    "codesage-large-v2": CodeSageEmbeddingModel,
-                    "BinSeek-Embedding":BinSeekEmbeddingModel}
+MODEL_CLASS_MAP = {
+    "bge-small-en-v1.5": HFBGEEmbeddingModel,
+    "bge-base-en-v1.5": HFBGEEmbeddingModel,
+    "bge-large-en-v1.5": HFBGEEmbeddingModel,
+    "bge-m3": HFBGE3EmbeddingModel,
+    "Qwen3-Embedding-0.6B": OnlineQwen3EmbeddingModel,
+    "Qwen3-Embedding-8B": OnlineQwen3EmbeddingModel,
+    "embeddinggemma-300m": GemmaEmbeddingModel,
+    "snowflake-arctic-embed-l-v2.0": SnowflakeEmbeddingModel,
+    "SFR-Embedding-Mistral": SalesforceEmbeddingModel,
+    "nomic-embed-code": NomicAIEmbeddingModel,
+    "jina-embeddings-v2-base-code": JinaAIEmbeddingModel,
+    "codesage-large-v2": CodeSageEmbeddingModel,
+    "BinSeek-Embedding": BinSeekEmbeddingModel,
+}
 
 
-MODEL_SIZE_MAP = {"bge-small-en-v1.5": 0.033,
-                    "bge-base-en-v1.5": 0.1,
-                    "bge-large-en-v1.5": 0.3,
-                    "bge-m3": 0.56,
-                    "Qwen3-Embedding-0.6B": 0.6,
-                    "Qwen3-Embedding-8B": 8,
-                    "embeddinggemma-300m": 0.3,
-                    "snowflake-arctic-embed-l-v2.0": 0.3,
-                    "SFR-Embedding-Mistral": 7,
-                    "nomic-embed-code": 7,
-                    "jina-embeddings-v2-base-code": 0.16,
-                    "codesage-large-v2": 1.3,
-                    "BinSeek-Embedding":0.3
-                    }
+MODEL_SIZE_MAP = {
+    "bge-small-en-v1.5": 0.033,
+    "bge-base-en-v1.5": 0.1,
+    "bge-large-en-v1.5": 0.3,
+    "bge-m3": 0.56,
+    "Qwen3-Embedding-0.6B": 0.6,
+    "Qwen3-Embedding-8B": 8,
+    "embeddinggemma-300m": 0.3,
+    "snowflake-arctic-embed-l-v2.0": 0.3,
+    "SFR-Embedding-Mistral": 7,
+    "nomic-embed-code": 7,
+    "jina-embeddings-v2-base-code": 0.16,
+    "codesage-large-v2": 1.3,
+    "BinSeek-Embedding": 0.3,
+}
 
-for entry in Path(Path(THIS_FILES_DIRECTORY) / "models").iterdir():
+for entry in Path(Path(THIS_FILES_PARENT_DIRECTORY) / "models").iterdir():
     if entry.is_dir():
-        MODEL_CLASS_MAP.update({entry.name:OnlineCustomEmbeddingModel})
-        MODEL_SIZE_MAP.update({entry.name:0.6})
+        MODEL_CLASS_MAP.update({entry.name: OnlineCustomEmbeddingModel})
+        MODEL_SIZE_MAP.update(
+            {entry.name: 0.6}
+        )  # Hardcoded for now, needs adjusting if new custom model is introduced.
 
-assert(set(MODEL_CLASS_MAP.keys()) == set(MODEL_SIZE_MAP.keys()))
+assert set(MODEL_CLASS_MAP.keys()) == set(MODEL_SIZE_MAP.keys())

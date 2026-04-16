@@ -11,31 +11,24 @@ This is accomplished by training with a contrastive learning objective that asso
 Evaluation is accomplished through the following benchmarks:
 
 * Assemblage - source to decomplilation association (and vice versa)
-* Signsrch - "magic" constant association
-
-## TODO
-
-Software
-* Consolidate similar functionality across files
-* Segment processing from visualization in some files
-
-* add total function count to diagrams / graphs
-* change 
-    coloration of tsne 
-    figure size
-* add error bars
-* identify groups that models perform well on in signsrch experiments
-* Identify functions that models perform well on
-
-Discussions
-* Validate signsrch experiments
-* Work on slide materials
+* Signsrch - algorithm constant association
 
 
-Open questions
-* How to deal with presenting one sided statistical tests?
-* Can OOD tests be improved? If so, how?
+## Getting started
 
+This project uses the uv library. To get started, install uv via:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
-If VLLM problem persists, use Popen to run a vllm serve, and then use the query function to request expected objects. 
+Download the appropriate datasets into the dataset directory and pass them into conduct_experiment.py:
 
+```
+cd sfce
+```
+
+```bash
+uv run python conduct_experiment.py --data_dir_path $ASSEMBLAGE_PATH --yaml_file_path $CONFIG_PATH --signsrch_path $SIGNSRCH_PATH
+```
+
+Results will populate in sfce/experiment_results. Some intermediate artifacts will be saved in the data directory.

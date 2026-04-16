@@ -1,20 +1,18 @@
 from pathlib import Path
-from tkinter import NO
 
-from matplotlib.widgets import EllipseSelector
 from find_distances import find_distances
-from datasets import load_from_disk
-from add_embeddings import yaml_safe_load
 import numpy as np
 import pandas as pd
 import math
 import os
 import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, precision_recall_curve, auc, average_precision_score
+from sklearn.metrics import (
+    roc_curve,
+    precision_recall_curve,
+    auc,
+    average_precision_score,
+)
 
-###############################################
-# utilities for pair-based splitting
-###############################################
 
 def partner_index(i: int, num_ids: int) -> int:
     """
@@ -42,7 +40,9 @@ def _compute_knn_nonconformity(
     Distance is 1 - cosine similarity.
     """
     if len(idx_reference) < k:
-        raise ValueError(f"k={k} is larger than number of reference points={len(idx_reference)}")
+        raise ValueError(
+            f"k={k} is larger than number of reference points={len(idx_reference)}"
+        )
 
     # Submatrix of cosine sims between points and reference set
     sims = cosine_matrix[np.ix_(idx_points, idx_reference)]
@@ -110,14 +110,20 @@ def build_pair_based_splits_for_f1(
     ood_candidates = np.array(ood_candidates, dtype=int)
 
     if len(id_candidates) == 0:
-        raise ValueError("No ID candidates: no candidate id has its pair in the train set.")
+        raise ValueError(
+            "No ID candidates: no candidate id has its pair in the train set."
+        )
     if len(ood_candidates) == 0:
-        raise ValueError("No OOD candidates: all candidate ids have their pair in the train set.")
+        raise ValueError(
+            "No OOD candidates: all candidate ids have their pair in the train set."
+        )
 
     # Split ID candidates
     rng.shuffle(id_candidates)
     n_val_id = int(round(val_frac_id * len(id_candidates)))
-    n_val_id = max(1, min(n_val_id, len(id_candidates) - 1))  # keep both splits non-empty
+    n_val_id = max(
+        1, min(n_val_id, len(id_candidates) - 1)
+    )  # keep both splits non-empty
     ID_val = np.sort(id_candidates[:n_val_id])
     ID_test = np.sort(id_candidates[n_val_id:])
 
@@ -136,10 +142,6 @@ def build_pair_based_splits_for_f1(
         "OOD_test": OOD_test,
     }
 
-
-###############################################
-# metrics and F1 optimization
-###############################################
 
 def _precision_recall_f1_from_scores(
     id_scores: np.ndarray,
@@ -166,7 +168,7 @@ def _precision_recall_f1_from_scores(
     fn = int(((y_true == 1) & (y_pred == 0)).sum())
 
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     if precision + recall == 0:
         f1 = 0.0
     else:
@@ -216,11 +218,6 @@ def _bootstrap_f1_ci(
     return float(lower), float(upper)
 
 
-###############################################
-# main F1-optimized kNN OOD detector
-###############################################
-
-
 def knn_ood_f1_with_pairs(
     cosine_parquet_path: str,
     k_list,
@@ -253,9 +250,9 @@ def knn_ood_f1_with_pairs(
     cosine_df = pd.read_parquet(cosine_parquet_path)
     cosine_matrix = cosine_df.values
     num_ids = cosine_matrix.shape[0]
-    cosine_matrix = np.clip(cosine_matrix, 
-                            a_max=np.max(np.nan_to_num(cosine_matrix, posinf=0)), 
-                            a_min=0) # values should never exceed 1.
+    cosine_matrix = np.clip(
+        cosine_matrix, a_max=np.max(np.nan_to_num(cosine_matrix, posinf=0)), a_min=0
+    )  # values should never exceed 1.
 
     splits = build_pair_based_splits_for_f1(
         num_ids=num_ids,
@@ -266,9 +263,9 @@ def knn_ood_f1_with_pairs(
     )
 
     ID_train = splits["ID_train"]
-    ID_val   = splits["ID_val"]
-    ID_test  = splits["ID_test"]
-    OOD_val  = splits["OOD_val"]
+    ID_val = splits["ID_val"]
+    ID_test = splits["ID_test"]
+    OOD_val = splits["OOD_val"]
     OOD_test = splits["OOD_test"]
 
     max_k = max(k_list)
@@ -313,7 +310,9 @@ def knn_ood_f1_with_pairs(
             prec, rec, f1, _, _, _ = _precision_recall_f1_from_scores(
                 id_val_scores, ood_val_scores, tau
             )
-            if f1 > best_f1_k or (f1 == best_f1_k and (best_tau_k is None or tau < best_tau_k)):
+            if f1 > best_f1_k or (
+                f1 == best_f1_k and (best_tau_k is None or tau < best_tau_k)
+            ):
                 best_f1_k = f1
                 best_tau_k = tau
                 best_prec_k = prec
@@ -371,21 +370,29 @@ def knn_ood_f1_with_pairs(
     )
 
     # Build ROC / PR data on the test split (using scores and true labels)
-    y_true_test = np.concatenate([
-        np.zeros(len(id_test_scores), dtype=int),
-        np.ones(len(ood_test_scores), dtype=int),
-    ])
+    y_true_test = np.concatenate(
+        [
+            np.zeros(len(id_test_scores), dtype=int),
+            np.ones(len(ood_test_scores), dtype=int),
+        ]
+    )
     scores_test = np.concatenate([id_test_scores, ood_test_scores])
 
     if len(np.unique(y_true_test)) < 2:
         # Degenerate case: only one class present
         fpr, tpr, roc_thresh = np.array([0.0]), np.array([0.0]), np.array([np.inf])
-        precision_curve, recall_curve, pr_thresh = np.array([1.0]), np.array([0.0]), np.array([np.inf])
+        precision_curve, recall_curve, pr_thresh = (
+            np.array([1.0]),
+            np.array([0.0]),
+            np.array([np.inf]),
+        )
         roc_auc = float("nan")
         pr_auc = float("nan")
     else:
         fpr, tpr, roc_thresh = roc_curve(y_true_test, scores_test, pos_label=1)
-        precision_curve, recall_curve, pr_thresh = precision_recall_curve(y_true_test, scores_test, pos_label=1)
+        precision_curve, recall_curve, pr_thresh = precision_recall_curve(
+            y_true_test, scores_test, pos_label=1
+        )
         roc_auc = auc(fpr, tpr)
         pr_auc = average_precision_score(y_true_test, scores_test)
 
@@ -432,7 +439,9 @@ def knn_ood_f1_with_pairs(
     return results
 
 
-def plot_roc_pr_curves(results_by_model: dict, title_suffix: str = "", save_path: str = None):
+def plot_roc_pr_curves(
+    results_by_model: dict, title_suffix: str = "", save_path: str = None
+):
     """
     results_by_model: dict mapping model_name -> results dict from knn_ood_f1_with_pairs.
 
@@ -459,11 +468,13 @@ def plot_roc_pr_curves(results_by_model: dict, title_suffix: str = "", save_path
         pr_auc = pr["auc"]
 
         ax_roc.plot(
-            fpr, tpr,
+            fpr,
+            tpr,
             label=f"{model_name} (AUC={roc_auc:.3f})",
         )
         ax_pr.plot(
-            recall, precision,
+            recall,
+            precision,
             label=f"{model_name} (AP={pr_auc:.3f})",
         )
 
@@ -489,11 +500,11 @@ def plot_roc_pr_curves(results_by_model: dict, title_suffix: str = "", save_path
     return ax_roc, ax_pr
 
 
-###############################################
-# LaTeX summary table
-###############################################
-
-def make_latex_summary_table(results_by_model: dict, caption: str = "OOD Detection Summary", label: str = "tab:ood_summary"):
+def make_latex_summary_table(
+    results_by_model: dict,
+    caption: str = "OOD Detection Summary",
+    label: str = "tab:ood_summary",
+):
     """
     Build a LaTeX table summarizing key metrics per model.
 
@@ -506,7 +517,9 @@ def make_latex_summary_table(results_by_model: dict, caption: str = "OOD Detecti
     lines.append("\\small")
     lines.append("\\begin{tabular}{lrrrrrrr}")
     lines.append("\\hline")
-    lines.append("Model & $k^*$ & $\\tau^*$ & F1$_{\\text{test}}$ & Prec$_{\\text{test}}$ & Rec$_{\\text{test}}$ & AUC$_{\\text{ROC}}$ & AUC$_{\\text{PR}}$\\\\")
+    lines.append(
+        "Model & $k^*$ & $\\tau^*$ & F1$_{\\text{test}}$ & Prec$_{\\text{test}}$ & Rec$_{\\text{test}}$ & AUC$_{\\text{ROC}}$ & AUC$_{\\text{PR}}$\\\\"
+    )
     lines.append("\\hline")
 
     for model_name, res in results_by_model.items():
@@ -544,32 +557,32 @@ def make_latex_summary_table(results_by_model: dict, caption: str = "OOD Detecti
 
     return "\n".join(lines)
 
-def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B", 
-                       "bge-small-en-v1.5"], 
-         similarity_files=["../data/cosine_Qwen3-Embedding-0.6B.parquet", 
-                           "../data/cosine_bge-small-en-v1.5.parquet"]):
-    
+
+def get_stats_for_f1(
+    model_list=["Qwen3-Embedding-0.6B", "bge-small-en-v1.5"],
+    similarity_files=[
+        "../data/cosine_Qwen3-Embedding-0.6B.parquet",
+        "../data/cosine_bge-small-en-v1.5.parquet",
+    ],
+):
+
     out_path = Path(__file__).resolve().parent / Path("experiment_results")
     os.makedirs(out_path, exist_ok=True)
 
-    if not model_list:    
+    if not model_list:
         # 1) Build cosine similarity parquet files (per model)
         model_list, similarity_files = find_distances(
             data_input_dir="path/to/hf_dataset",
             model_config_path="path/to/models.yaml",
         )
 
-
     # 2) Run F1-optimized kNN OOD detection for each model
     k_list = [1, 3, 5, 10, 20, 50]
 
-
-    for distance_type in ["Cosine","Euclidean"]:
-            
+    for distance_type in ["Cosine", "Euclidean"]:
         results_by_model = {}
 
         for model, distance_file_path in zip(model_list, similarity_files):
-
             if distance_type.lower() not in distance_file_path:
                 continue
 
@@ -591,9 +604,11 @@ def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B",
             )
 
         # 3) Plot ROC / PR curves across models
-        plot_roc_pr_curves(results_by_model, 
-                           title_suffix=f" (Test Split) - {distance_type} Distance", 
-                           save_path=f"{out_path}/roc_pr_models_{distance_type.lower()}.png")
+        plot_roc_pr_curves(
+            results_by_model,
+            title_suffix=f" (Test Split) - {distance_type} Distance",
+            save_path=f"{out_path}/roc_pr_models_{distance_type.lower()}.png",
+        )
 
         # 4) Generate LaTeX table summary
         latex_table = make_latex_summary_table(results_by_model)
@@ -602,6 +617,7 @@ def get_stats_for_f1(model_list = ["Qwen3-Embedding-0.6B",
             f.write(latex_table)
 
     print("Calibrated OOD detection")
+
 
 if __name__ == "__main__":
     get_stats_for_f1()

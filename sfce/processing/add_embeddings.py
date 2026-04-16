@@ -1,4 +1,11 @@
-from models import MODEL_CLASS_MAP
+import sys
+from pathlib import Path
+
+parent_dir = Path(__file__).resolve().parent.parent
+sys.path.append(
+    str(parent_dir)
+)  # This is bad form but want to prevent necessitating a package install
+from modeling.models import MODEL_CLASS_MAP
 from datasets import load_from_disk
 from tqdm import tqdm
 import yaml
@@ -10,8 +17,8 @@ from sklearn.manifold import TSNE
 import os
 from pathlib import Path
 from torch import Tensor, is_tensor, cuda
-from vllm.distributed.parallel_state import destroy_model_parallel
 import gc
+
 """
 Note "id'd" data refers to data that has been id'd by 
 1. function 
@@ -19,8 +26,9 @@ Note "id'd" data refers to data that has been id'd by
 3. decompilation function (starting from ds length to ds length * 2)
 """
 
-def yaml_safe_load(filename:str):
-    with open(filename, 'r') as file:
+
+def yaml_safe_load(filename: str):
+    with open(filename, "r") as file:
         data = yaml.safe_load(file)
         return data
 
@@ -163,8 +171,9 @@ def save_tsne_figures_from_embeddings(
     plt.close(fig3)
 
     return {"tsne_2d_path": out_2d, "tsne_3d_path": out_3d}
-    
-def downcast(tensor_or_ndarray: Tensor |np.ndarray) -> np.ndarray:
+
+
+def downcast(tensor_or_ndarray: Tensor | np.ndarray) -> np.ndarray:
     desired_type = np.float32
     if isinstance(tensor_or_ndarray, np.ndarray):
         return tensor_or_ndarray.astype(desired_type)
@@ -173,70 +182,18 @@ def downcast(tensor_or_ndarray: Tensor |np.ndarray) -> np.ndarray:
     else:
         raise ValueError(f"Unidentified type: {type(tensor_or_ndarray)}")
 
-def create_embeddings(data_directory: str, 
-                      model_config_path: str, 
-                      batch_size: int,
-                      out_path : str = str(Path(__file__).resolve().parent / Path("experiment_results")),
-                      tsne_per_rep_limit: int = 5000):
-    
-    device = "cuda"
-    yaml_config = yaml_safe_load(model_config_path)
 
-    ds = load_from_disk(data_directory)
-    batched_ds = ds.batch(batch_size = batch_size)
-    
-    local_model = None
-    for model in yaml_config["models"]:
-        sleep(5)
-        if "quant" in model:
-            local_model = MODEL_CLASS_MAP[model](device=device, name=model, quantization="fp8")
-        else:
-            local_model = MODEL_CLASS_MAP[model](device=device, name=model)
-        sleep(5)
-            
-            
-        # batch and process
-        embedding_list = [[None] * len(ds) for _ in range(2)]
-        for _, batch in enumerate(tqdm(batched_ds, desc="Embedding batches...")):
-            for key_index, key in enumerate(['decompilation','source']):
-                embeddings = local_model.embed_batch(batch[key])
+def create_embeddings(
+    data_directory: str,
+    model_config_path: str,
+    batch_size: int,
+    out_path: str = str(
+        Path(__file__).resolve().parent.parent / Path("experiment_results")
+    ),
+    tsne_per_rep_limit: int = 5000,
+    overwrite: bool = False,
+):
 
-                for index in range(len(batch[key])):
-                    embeddings_at_index = np.array(embeddings[index])
-                    result = downcast(embeddings_at_index)
-                    embedding_list[key_index][batch["function_id"][index]] = result
-                
-
-        for key_index, key in enumerate(['decompilation','source']):
-            ds = ds.add_column(f"{model}-embedding-{key}", embedding_list[key_index])
-
-        print(f"Composing dimensionality reduction plots for {model}")
-        save_tsne_figures_from_embeddings(
-            ds=ds,
-            model_name=model,
-            out_path=out_path,
-            per_rep_limit=tsne_per_rep_limit,
-        )
-
-        
-        del(local_model)
-        gc.collect()
-        cuda.empty_cache()
-        
-
-    new_ds_directory = f"{data_directory}_embedded"
-    ds.save_to_disk(new_ds_directory, num_proc=16)
-    print(f"Processed Embeddings at {new_ds_directory}")
-    return new_ds_directory
-
-# Claude with cache
-def create_embeddings(data_directory: str, 
-                      model_config_path: str, 
-                      batch_size: int,
-                      out_path: str = str(Path(__file__).resolve().parent / Path("experiment_results")),
-                      tsne_per_rep_limit: int = 5000,
-                      overwrite: bool = False):
-    
     device = "cuda"
     yaml_config = yaml_safe_load(model_config_path)
 
@@ -271,14 +228,16 @@ def create_embeddings(data_directory: str,
         print(f"No cache found for {model} — computing embeddings...")
         sleep(5)
         if "quant" in model:
-            local_model = MODEL_CLASS_MAP[model](device=device, name=model, quantization="fp8")
+            local_model = MODEL_CLASS_MAP[model](
+                device=device, name=model, quantization="fp8"
+            )
         else:
             local_model = MODEL_CLASS_MAP[model](device=device, name=model)
         sleep(5)
 
         embedding_list = [[None] * len(ds) for _ in range(2)]
         for _, batch in enumerate(tqdm(batched_ds, desc="Embedding batches...")):
-            for key_index, key in enumerate(['decompilation', 'source']):
+            for key_index, key in enumerate(["decompilation", "source"]):
                 embeddings = local_model.embed_batch(batch[key])
 
                 for index in range(len(batch[key])):
@@ -286,7 +245,7 @@ def create_embeddings(data_directory: str,
                     result = downcast(embeddings_at_index)
                     embedding_list[key_index][batch["function_id"][index]] = result
 
-        for key_index, key in enumerate(['decompilation', 'source']):
+        for key_index, key in enumerate(["decompilation", "source"]):
             ds = ds.add_column(f"{model}-embedding-{key}", embedding_list[key_index])
         # saved dataset
         ds.save_to_disk(new_ds_directory, num_proc=16)
@@ -299,7 +258,7 @@ def create_embeddings(data_directory: str,
             per_rep_limit=tsne_per_rep_limit,
         )
 
-        del(local_model)
+        del local_model
         gc.collect()
         cuda.empty_cache()
 
@@ -307,13 +266,18 @@ def create_embeddings(data_directory: str,
     print(f"Processed Embeddings at {new_ds_directory}")
     return new_ds_directory
 
-def just_embeddings(data_directory, 
-                    model_config_path,
-                    out_path: str = str(Path(__file__).resolve().parent / Path("experiment_results")),):
+
+def just_embeddings(
+    data_directory,
+    model_config_path,
+    out_path: str = str(
+        Path(__file__).resolve().parent.parent / Path("experiment_results")
+    ),
+):
     yaml_config = yaml_safe_load(model_config_path)
     new_ds_directory = f"{data_directory}_embedded"
     cached_ds = load_from_disk(new_ds_directory)
-    
+
     for model in yaml_config["models"]:
         save_tsne_figures_from_embeddings(
             ds=cached_ds,
@@ -322,15 +286,10 @@ def just_embeddings(data_directory,
         )
 
 
-
-
 if __name__ == "__main__":
     # Retained for test case
-    DATA_DIR = "/home/ewolos/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd"
-    CONFIG_PATH = "/home/ewolos/semantic-free-code-embedding/config/experiment_config.yaml"
+
+    DATA_DIR = f"{os.path.expanduser('~')}/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd"
+    CONFIG_PATH = f"{os.path.expanduser('~')}/semantic-free-code-embedding/config/experiment_config.yaml"
     BATCH_SIZE = 64
-    just_embeddings(data_directory = DATA_DIR, 
-                    model_config_path = CONFIG_PATH)
-    #create_embeddings(data_directory = DATA_DIR, 
-    #                  model_config_path = CONFIG_PATH, 
-    #                  batch_size = BATCH_SIZE)
+    # just_embeddings(data_directory=DATA_DIR, model_config_path=CONFIG_PATH)
