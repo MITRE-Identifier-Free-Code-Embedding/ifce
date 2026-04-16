@@ -67,7 +67,7 @@ def find_distances(
             / f"cosine_{model}.parquet"
         )
         if (
-            new_file_path.is_file() and caching == True and save_euclidean == False
+            new_file_path.is_file() and caching and not save_euclidean
         ):  # caching
             similarity_files.append(new_file_path)
             continue

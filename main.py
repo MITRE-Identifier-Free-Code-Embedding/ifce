@@ -1,4 +1,3 @@
-import os
 from sfce.conduct_experiment import conduct_experiment
 
 def main():

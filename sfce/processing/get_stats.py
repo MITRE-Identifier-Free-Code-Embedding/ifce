@@ -1,8 +1,4 @@
-from pathlib import Path
 from find_cosine_sim import find_cosine_sim
-import sys
-from datasets import load_from_disk
-from add_embeddings import yaml_safe_load
 import numpy as np
 import pandas as pd
 import math

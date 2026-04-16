@@ -5,15 +5,13 @@ from processing.add_embeddings import yaml_safe_load
 from time import sleep
 import matplotlib.pyplot as plt
 from pathlib import Path
-from time import sleep, perf_counter
-import matplotlib.pyplot as plt
+from time import perf_counter
 import matplotlib.ticker as mticker
 import seaborn as sns
 import re
 import pandas as pd
 import gc
 
-from pathlib import Path
 
 TARGET_EMBED_COUNT = 10_000
 

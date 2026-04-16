@@ -19,7 +19,6 @@ from pathlib import Path
 from visualization.signsrch_visualizations import (
     plot_group_map_bars,
     plot_wilcoxon_pvalue_heatmap,
-    plot_overlaid_histograms,
     plot_overlaid_kde,
     plot_map_histograms,
     plot_model_comparison_bars,
@@ -195,8 +194,8 @@ def latex_from_summary(
     lines.append("    " + col_header)
     lines.append(r"    \hline")
 
-    for model, stats in summary.items():
-        row_vals = [f"{stats[k]:.6f}" for k in cols]
+    for model, _stats in summary.items():
+        row_vals = [f"{_stats[k]:.6f}" for k in cols]
         row = " & ".join([str(model)] + row_vals) + r" \\"
         lines.append("    " + row)
 
@@ -362,7 +361,7 @@ def get_embeddings_from_model(keys, local_model, batch_size, model_name):
     ):
         end = start + batch_size
         batch_keys = keys[start:end]
-        if type(batch_keys) == str:
+        if isinstance(batch_keys,str):
             batch_keys = [batch_keys]  # edge case?
         batch_embeddings = local_model.embed_batch(batch_keys)
 
@@ -609,13 +608,13 @@ def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
 def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None, batch_size: int = 512):
 
     # Takes one input arg: path to signsrch.sig file
-    if len(sys.argv) < 2 and signsrch_path == None:
+    if len(sys.argv) < 2 and signsrch_path is None:
         print(f"Usage: {sys.argv[0]} <signsrch.sig>")
         sys.exit(1)
 
     out_path = Path(__file__).resolve().parent / Path("experiment_results")
 
-    sigs = parse_signsrch(signsrch_path if signsrch_path != None else sys.argv[1])
+    sigs = parse_signsrch(signsrch_path if signsrch_path is not None else sys.argv[1])
 
     for name, data in sigs.items():
         split_set = set(
@@ -699,7 +698,6 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None, 
         APs = []
         df_no_algo_classes = df.drop(columns=list(sigs.keys()), index=list(sigs.keys()))
         values = df_no_algo_classes.copy().to_numpy().copy()
-        N = values.shape[0]
 
         # Mask out diagonal so it never appears in rankings
         np.fill_diagonal(values, -np.inf)
@@ -725,7 +723,7 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None, 
 
     gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path)
 
-    print(f"Completed Signsrch Experiments")
+    print("Completed Signsrch Experiments")
 
 
 if __name__ == "__main__": # retained for debugging

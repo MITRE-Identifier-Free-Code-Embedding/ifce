@@ -5,7 +5,7 @@ import os
 import pickle
 import seaborn as sns
 import matplotlib.pyplot as plt
-from modeling.models import MODEL_CLASS_MAP, MODEL_SIZE_MAP
+from modeling.models import MODEL_SIZE_MAP
 from pathlib import Path
 from typing import List
 from datasets import load_from_disk
@@ -197,7 +197,6 @@ def compute_query_metrics_from_ranks(ranks, k_for_recalls):
           'MRR', 'MRR@k', 'Recall@k' -> 1D numpy arrays of length n_queries
     """
     ranks = np.asarray(ranks)
-    n = ranks.size
 
     # Per-query reciprocal rank (for full MRR)
     rr = 1.0 / ranks

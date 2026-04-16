@@ -1,10 +1,6 @@
 from pathlib import Path
-from tkinter import NO
 
-from matplotlib.widgets import EllipseSelector
 from find_distances import find_distances
-from datasets import load_from_disk
-from add_embeddings import yaml_safe_load
 import numpy as np
 import pandas as pd
 import math

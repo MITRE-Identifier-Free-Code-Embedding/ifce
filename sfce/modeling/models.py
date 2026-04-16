@@ -31,7 +31,7 @@ class EmbeddingModel:
         raise NotImplementedError
 
     def parameter_count(self) -> int:
-        if self.model == None:
+        if self.model is None:
             raise ValueError("Model must be instantiated")
         return sum(p.numel() for p in self.model.model.parameters())
 

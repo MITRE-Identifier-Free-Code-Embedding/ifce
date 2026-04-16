@@ -1,9 +1,8 @@
 from datasets import load_from_disk
 from sentence_transformers.losses import (
     CachedMultipleNegativesRankingLoss,
-    MultipleNegativesRankingLoss,
 )
-from sentence_transformers.training_args import BatchSamplers, MultiDatasetBatchSamplers
+from sentence_transformers.training_args import BatchSamplers
 from sentence_transformers import (
     SentenceTransformerTrainingArguments,
     SentenceTransformerTrainer,

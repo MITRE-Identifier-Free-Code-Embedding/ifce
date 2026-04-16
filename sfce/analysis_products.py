@@ -2,7 +2,6 @@ from analyze_sims import gen_products, K_FOR_RECALLS
 from processing.add_embeddings import yaml_safe_load
 import pickle
 import os
-import sys
 from pathlib import Path
 from signsrch_exps import gen_signsrch_products, parse_signsrch
 
