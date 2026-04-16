@@ -61,7 +61,7 @@ def find_distances(
 
     for model in model_list:
         new_file_path = (
-            pathlib.Path(__file__).parent.parent.resolve()
+            pathlib.Path(__file__).parent.parent.parent.resolve()
             / "data"
             / f"cosine_{model}.parquet"
         )

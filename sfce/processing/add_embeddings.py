@@ -284,12 +284,3 @@ def just_embeddings(
             model_name=model,
             out_path=out_path,
         )
-
-
-if __name__ == "__main__":
-    # Retained for test case
-
-    DATA_DIR = f"{os.path.expanduser('~')}/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd"
-    CONFIG_PATH = f"{os.path.expanduser('~')}/semantic-free-code-embedding/config/experiment_config.yaml"
-    BATCH_SIZE = 64
-    # just_embeddings(data_directory=DATA_DIR, model_config_path=CONFIG_PATH)
