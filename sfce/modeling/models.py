@@ -15,7 +15,7 @@ import signal
 import requests
 from openai import OpenAI
 
-THIS_FILES_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+THIS_FILES_PARENT_DIRECTORY = Path(os.path.dirname(os.path.abspath(__file__))).parent
 
 
 class EmbeddingModel:
@@ -37,6 +37,8 @@ class EmbeddingModel:
 
 
 class HFEmbeddingModel(EmbeddingModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def _infer(self, encoded_input):
         with torch.no_grad():
@@ -101,7 +103,7 @@ class Qwen3HFEmbeddingModel(HFEmbeddingModel):
 class CustomHFEmbeddingModel(HFEmbeddingModel):
     def __init__(self, name: str, device: str = "cpu"):
         super().__init__(name=name, device=device)
-        models_path = Path(THIS_FILES_DIRECTORY) / "models" / name
+        models_path = Path(THIS_FILES_PARENT_DIRECTORY) / "models" / name
         self.model = AutoModel.from_pretrained(models_path, device_map=device).eval()
         self.tokenizer = AutoTokenizer.from_pretrained(models_path)
 
@@ -374,7 +376,7 @@ class OnlineCustomEmbeddingModel(OnlineQwen3EmbeddingModel):
         self.former_name = "Qwen/Qwen3-Embedding-0.6B"
 
     def _start_server(self, device, gpu_memory_utilization, max_model_len, **kwargs):
-        self.model_path = Path(THIS_FILES_DIRECTORY) / "models" / self.name
+        self.model_path = Path(THIS_FILES_PARENT_DIRECTORY) / "models" / self.name
         cmd = [
             "vllm",
             "serve",
@@ -433,7 +435,7 @@ class CustomEmbeddingModelVLLM(EmbeddingModel):
 
         self.prompting = prompting
         self.task_description = "Given a source code function or a decompiled code, find the respective opposite representation of source code or decompilation that is equivalent."
-        self.model_path = Path(THIS_FILES_DIRECTORY) / "models" / self.name
+        self.model_path = Path(THIS_FILES_PARENT_DIRECTORY) / "models" / self.name
         self.model = LLM(model=str(self.model_path))
         self.truncate_length = self.model.model_config.max_model_len - 1
 
@@ -597,7 +599,7 @@ MODEL_SIZE_MAP = {
     "BinSeek-Embedding": 0.3,
 }
 
-for entry in Path(Path(THIS_FILES_DIRECTORY) / "models").iterdir():
+for entry in Path(Path(THIS_FILES_PARENT_DIRECTORY) / "models").iterdir():
     if entry.is_dir():
         MODEL_CLASS_MAP.update({entry.name: OnlineCustomEmbeddingModel})
         MODEL_SIZE_MAP.update(

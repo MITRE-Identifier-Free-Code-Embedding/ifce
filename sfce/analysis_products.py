@@ -1,18 +1,19 @@
 from analyze_sims import gen_products, K_FOR_RECALLS
-from add_embeddings import yaml_safe_load
+from processing.add_embeddings import yaml_safe_load
 import pickle
 import os
 import sys
 from pathlib import Path
-from signsrch_to_dict import gen_signsrch_products, parse_signsrch
+from signsrch_exps import gen_signsrch_products, parse_signsrch
 
 if __name__ == "__main__":
     """
     Quick script for using the saved pkls to regenerate figures. Useful for changing plot styling and generating new plots without rerunning experiments.
     """
 
-    CONFIG_PATH = f"{os.path.expanduser("~")}/semantic-free-code-embedding/config/experiment_config.yaml" if len(sys.argv) < 2 else sys.argv[1]
-    model_names = yaml_safe_load(CONFIG_PATH)["models"]
+
+    CONFIG_PATH = Path(__file__).resolve().parent.parent / Path("config/experiment_config.yaml")
+    model_names = yaml_safe_load(str(CONFIG_PATH))["models"]
     with open("metrics_df.pkl", "rb") as file:
         metrics_df = pickle.load(file)
 

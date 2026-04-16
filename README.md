@@ -11,12 +11,12 @@ This is accomplished by training with a contrastive learning objective that asso
 Evaluation is accomplished through the following benchmarks:
 
 * Assemblage - source to decomplilation association (and vice versa)
-* Signsrch - "magic" constant association
+* Signsrch - algorithm constant association
 
 
 ## Getting started
 
-This project uses the uv library. To get started, install uv via. 
+This project uses the uv library. To get started, install uv via:
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
@@ -31,4 +31,4 @@ cd sfce
 uv run python conduct_experiment.py --data_dir_path $ASSEMBLAGE_PATH --yaml_file_path $CONFIG_PATH --signsrch_path $SIGNSRCH_PATH
 ```
 
-Results will populate in sfce/experiment_results.
+Results will populate in sfce/experiment_results. Some intermediate artifacts will be saved in the data directory.

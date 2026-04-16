@@ -1,7 +1,7 @@
-from models import MODEL_CLASS_MAP
+from modeling.models import MODEL_CLASS_MAP
 from datasets import load_from_disk
 from tqdm import tqdm
-from add_embeddings import yaml_safe_load
+from processing.add_embeddings import yaml_safe_load
 from time import sleep
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -19,8 +19,6 @@ TARGET_EMBED_COUNT = 10_000
 
 VLLM_MEM_PATTERNS = {
     "weights_gb": re.compile(r"Model loading took\s+([\d.]+)\s*GiB"),
-    # "non_torch_gb":  re.compile(r"non_torch_memory takes\s+([\d.]+)\s*GiB"),
-    # "activation_gb": re.compile(r"PyTorch activation peak memory takes\s+([\d.]+)\s*GiB"),
     "kv_cache_gb": re.compile(r"Available KV cache memory:\s+([\d.]+)\s*GiB"),
 }
 
@@ -147,11 +145,6 @@ def plot_embed_times(timing_results: dict[str, dict], out_path: Path):
     fig.savefig(plot_file, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved timing plot → {plot_file}")
-
-
-def extrapolate_to_target(elapsed_s: float, actual_count: int) -> float:
-    """Scale elapsed time to TARGET_EMBED_COUNT."""
-    return elapsed_s * (TARGET_EMBED_COUNT / actual_count)
 
 
 def main(

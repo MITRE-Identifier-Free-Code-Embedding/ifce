@@ -1,11 +1,14 @@
 from datasets import load_from_disk
-from add_embeddings import yaml_safe_load
+import sys
+import pathlib
+sys.path.append(pathlib.Path(__file__).resolve().parent)
+from processing.add_embeddings import yaml_safe_load
 from pandas import DataFrame
 import numpy as np
 from tqdm import tqdm
 import torch
 import torch.nn.functional as F
-import pathlib
+
 from sklearn.metrics import pairwise_distances
 from torch.utils.data import DataLoader
 

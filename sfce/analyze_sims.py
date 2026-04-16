@@ -1,16 +1,15 @@
 import pandas as pd
 import numpy as np
-from tqdm.auto import tqdm
 from joblib import Parallel, delayed
 import os
 import pickle
 import seaborn as sns
 import matplotlib.pyplot as plt
-from models import MODEL_CLASS_MAP, MODEL_SIZE_MAP
+from modeling.models import MODEL_CLASS_MAP, MODEL_SIZE_MAP
 from pathlib import Path
 from typing import List
 from datasets import load_from_disk
-from visualizations import log_histogram, trimmed_quantile_boxplot, scatter_with_fit
+from visualization.visualizations import log_histogram, trimmed_quantile_boxplot, scatter_with_fit
 
 K_FOR_RECALLS = [1, 3, 5, 10]
 
@@ -37,15 +36,6 @@ def MRR_at_k(rank_series: np.ndarray, k: int):
 
 
 def get_function_lengths(dataset):
-    """
-    template = np.zeros(len(dataset) * 2)
-    for ex in tqdm(dataset, desc="Loading embeddings"):
-        src_id = ex["source_id"]
-        dec_id = ex["decompilation_id"]
-        template[int(src_id)] = len(ex["source"])
-        template[int(dec_id)] = len(ex["decompilation"])
-    return template
-    """
 
     src_ids = np.array(dataset["source_id"], dtype=np.int64)
     dec_ids = np.array(dataset["decompilation_id"], dtype=np.int64)
@@ -56,24 +46,6 @@ def get_function_lengths(dataset):
     template[src_ids] = src_lens
     template[dec_ids] = dec_lens
     return template
-
-
-"""
-def get_function_signature_count(dataset):
-
-    template = np.zeros(len(dataset) * 2)
-    for ex in tqdm(dataset, desc="Loading embeddings"):
-        src_id = ex["source_id"]
-        dec_id = ex["decompilation_id"]
-        # The number of arguments a function takes can be expressed as:
-        # the number of commas in its signature plus one
-        source_sig = ex["source"][ex["source"].find("(")+1: ex["source"].find(")")]
-        decomp_sig = ex["decompilation"][ex["decompilation"].find("(")+1: ex["decompilation"].find(")")]
-
-        template[int(src_id)] = source_sig.count(',') + 1 if source_sig.strip() else 0
-        template[int(dec_id)] = decomp_sig.count(',') + 1 if decomp_sig.strip() else 0
-    return template
-"""
 
 
 def get_function_signature_count(dataset):
@@ -323,56 +295,6 @@ def _attach_metric_se_columns(df_group, candidate_group, all_ranks, k_for_recall
         )
 
     return df_group
-
-
-def _add_errorbars_to_grouped_barplot(ax, df_plot, x_col, hue_col, y_col, err_col):
-    """
-    Add custom y-error bars to a seaborn grouped barplot.
-
-    This assumes:
-      - bars are drawn in the same order seaborn uses:
-        for each x category, iterate over hue levels
-      - df_plot contains one row per visible bar
-    """
-    x_levels = list(pd.unique(df_plot[x_col]))
-    hue_levels = list(pd.unique(df_plot[hue_col]))
-
-    expected_rows = []
-    for x_val in x_levels:
-        sub_x = df_plot[df_plot[x_col] == x_val]
-        for hue_val in hue_levels:
-            sub = sub_x[sub_x[hue_col] == hue_val]
-            if len(sub) == 0:
-                continue
-            expected_rows.append(sub.iloc[0])
-
-    expected_rows = [row for row in expected_rows if row["MRR"] >= 0.001]
-
-    patches = [
-        patch for patch in ax.patches if isinstance(patch.get_height(), np.float64)
-    ]
-    if len(patches) != len(expected_rows):
-        raise ValueError(
-            f"Mismatch between plotted bars ({len(patches)}) and expected rows ({len(expected_rows)})."
-        )
-
-    for patch, row in zip(patches, expected_rows):
-        y = float(row[y_col])
-        yerr = float(row[err_col])
-
-        x_center = patch.get_x() + patch.get_width() / 2.0
-
-        ax.errorbar(
-            x=x_center,
-            y=y,
-            yerr=yerr,
-            fmt="none",
-            ecolor="black",
-            elinewidth=1.8,
-            capsize=6,
-            capthick=1.8,
-            zorder=10,
-        )
 
 
 def _plot_metric_with_errorbars(
@@ -696,7 +618,7 @@ def analyze_sims(
     for model_name, parquet_path in zip(model_names, cosine_parquet_paths):
 
         df = pd.read_parquet(parquet_path, engine="pyarrow")
-        distance_type = df.attrs["distance_type"]
+
         half_length = round(len(df) / 2)
 
         # Rank of the matching function among all other functions

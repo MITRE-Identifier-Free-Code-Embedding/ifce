@@ -1,9 +1,8 @@
 import argparse
-from add_embeddings import create_embeddings
-from find_distances import find_distances
+from processing.add_embeddings import create_embeddings
+from processing.find_distances import find_distances
 from analyze_sims import analyze_sims
-from get_stats_for_f1 import get_stats_for_f1
-from signsrch_to_dict import run_signsrch_exps
+from signsrch_exps import run_signsrch_exps
 import os
 
 

@@ -2,21 +2,21 @@ from time import sleep
 import re
 import sys
 
-from add_embeddings import yaml_safe_load
-from models import MODEL_CLASS_MAP
+from processing.add_embeddings import yaml_safe_load
+from modeling.models import MODEL_CLASS_MAP
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
 import torch
 import pickle
-from find_distances import cosine_matrix_calculation
+from processing.find_distances import cosine_matrix_calculation
 from joblib import Parallel, delayed
 import os
 import itertools
 import joblib
 from scipy import stats
 from pathlib import Path
-from signsrch_visualizations import (
+from visualization.signsrch_visualizations import (
     plot_group_map_bars,
     plot_wilcoxon_pvalue_heatmap,
     plot_overlaid_histograms,
@@ -593,8 +593,6 @@ def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
             cmap="crest",
             file_path=out_path / Path(f"ap_wilcoxon_pvalues_{extension_name}.png"),
         )
-
-        # plot_overlaid_histograms(AP_dict, bins=50, density=True) # This hasn't been useful and is ugly
 
         plot_overlaid_kde(
             AP_dict,

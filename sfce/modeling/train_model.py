@@ -9,14 +9,57 @@ from sentence_transformers import (
     SentenceTransformerTrainer,
     SentenceTransformer,
 )
-from transformers import AutoTokenizer, DataCollatorWithPadding, DataCollatorForSeq2Seq
+from transformers import AutoTokenizer
 
 
 import os
-from transformers import TrainerCallback
+from pathlib import Path
+import argparse
 
 
-def train(ds_path: str, model_name: str):
+def arg_parse():
+    parser = argparse.ArgumentParser(
+        description="Conduct Assemblage Training.",
+        epilog="",
+    )
+
+    parser.add_argument(
+        "--data_dir_path",
+        default=f"{os.path.expanduser("~")}/semantic-free-code-embedding/data/decompiled_summaries_TRAIN",
+        type=str,
+        help="The path to the directory to process.",
+    )
+
+    parser.add_argument(
+        "--model_name",
+        default="Qwen/Qwen3-Embedding-0.6B",
+        type=str,
+    )
+
+    parser.add_argument(
+        "--model_short_name",
+        default="Qwen",
+        type=str,
+    )
+
+    parser.add_argument(
+        "--grad_accum_steps",
+        default=2,
+        type=int,
+        help="Gradient accumulatioin steps. Should match the train config"
+    )
+
+    parser.add_argument(
+        "--batch_size",
+        default=64,
+        type=int,
+        help="Batch size"
+    )
+
+    args = parser.parse_args()
+    return args
+
+def train(ds_path: str, model_name: str, model_short_name:str, grad_accum_steps:int, batch_size:int):
 
     # model init
     model = SentenceTransformer(model_name)
@@ -25,7 +68,7 @@ def train(ds_path: str, model_name: str):
     # Data init
     ds = load_from_disk(ds_path)["train"]
     ds = ds.rename_columns(
-        {"source": "anchor", "decompilation": "positive"}
+        {"decompilation": "anchor", "source": "positive"}
     ).remove_columns(
         "summary"
     )  # may use this later
@@ -44,28 +87,25 @@ def train(ds_path: str, model_name: str):
             "anchor": encode_decode(x["anchor"]),
             "positive": encode_decode(x["positive"]),
         }
-    )  # I'm not totally convinced the data is getting truncated, so we do it manually.
+    )  #not totally convinced the data is getting truncated, so we do it manually.
 
     ds = ds.select_columns(["anchor", "positive"])
     split_ds = ds.train_test_split(test_size=0.01)
     train_ds, val_ds = split_ds["train"], split_ds["test"]
 
     mini_batch_size = 1  # In nearly every case, this should always be 1
-    batch_size = 64  # This is treated a little bit like gradient accumulation, a little bit differently
-    eval_batch_size = 4
-    grad_accum_steps = 2  # TODO maybe pull this from the config automatically?
+    eval_batch_size = max(int(batch_size/16), 1) # just to be safe
 
     # misc init
     loss = CachedMultipleNegativesRankingLoss(model, mini_batch_size=mini_batch_size)
-    # TODO eventually implement MatryoshkaLoss
 
-    run_name = f"mitRE_embed_{model_name}_source_anchor"
+    run_name = f"mitRE_embed_{model_name}_test"
+    out_path = Path(__file__).resolve().parent.parent / Path(f"models/mitRE_embed_{model_short_name}/{run_name}")
 
     args = SentenceTransformerTrainingArguments(
         dataloader_drop_last=True,
         torch_empty_cache_steps=1,  # prevents OOM
-        output_dir=f"models/mitRE_embed_Qwen/{run_name}",
-        # Optional training parameters:
+        output_dir=str(out_path),
         num_train_epochs=1,
         gradient_accumulation_steps=grad_accum_steps,
         per_device_train_batch_size=batch_size,
@@ -76,7 +116,6 @@ def train(ds_path: str, model_name: str):
         fp16=False,
         bf16=True,
         batch_sampler=BatchSamplers.NO_DUPLICATES,  # MultipleNegativesRankingLoss benefits from no duplicate samples in a batch
-        # Optional tracking/debugging parameters:
         eval_strategy="steps",
         eval_steps=10,
         save_strategy="steps",
@@ -84,7 +123,7 @@ def train(ds_path: str, model_name: str):
         save_total_limit=2,
         logging_steps=1,
         logging_first_step=True,
-        run_name=run_name,  # Used if `wandb`, `tensorboard`, or `neptune`, etc. is installed
+        run_name=run_name, 
         report_to="tensorboard",
         skip_memory_metrics=False,
         save_safetensors=True,
@@ -96,13 +135,10 @@ def train(ds_path: str, model_name: str):
         train_dataset=train_ds,
         eval_dataset=val_ds,
         loss=loss,
-        # data_collator=data_collator,
-        # evaluator=evaluator, TODO resolve at some point
     )
     trainer.train()
 
 
 if __name__ == "__main__":
-    DS_PATH = f"{os.path.expanduser("~")}/semantic-free-code-embedding/data/decompiled_summaries_TRAIN"
-    model_name = "Qwen/Qwen3-Embedding-0.6B"
-    train(ds_path=DS_PATH, model_name=model_name)
+    args = arg_parse()
+    train(ds_path=args.data_dir_path, model_name=args.model_name, model_short_name=args.model_short_name,grad_accum_steps=args.grad_accum_steps,batch_size=args.batch_size)
