@@ -23,12 +23,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 Download the appropriate datasets into the dataset directory and pass them into conduct_experiment.py:
 
-```
-cd sfce
+```bash
+wget https://aluigi.altervista.org/mytoolz/signsrch.zip 
+unzip signsrch
+mv signsrch.sig ./data
 ```
 
 ```bash
-uv run python conduct_experiment.py --data_dir_path $ASSEMBLAGE_PATH --yaml_file_path $CONFIG_PATH --signsrch_path $SIGNSRCH_PATH
+uv run python sfce/conduct_experiment.py --data_dir_path $ASSEMBLAGE_PATH --yaml_file_path $CONFIG_PATH --signsrch_path $SIGNSRCH_PATH
 ```
 
 Results will populate in sfce/experiment_results. Some intermediate artifacts will be saved in the data directory.

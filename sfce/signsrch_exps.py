@@ -606,17 +606,12 @@ def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
 
 
 def run_signsrch_exps(
-    model_config_path: str, signsrch_path: str | None = None, batch_size: int = 512
+    model_config_path: str, signsrch_path: str, batch_size: int = 512
 ):
-
-    # Takes one input arg: path to signsrch.sig file
-    if len(sys.argv) < 2 and signsrch_path is None:
-        print(f"Usage: {sys.argv[0]} <signsrch.sig>")
-        sys.exit(1)
 
     out_path = Path(__file__).resolve().parent / Path("experiment_results")
 
-    sigs = parse_signsrch(signsrch_path if signsrch_path is not None else sys.argv[1])
+    sigs = parse_signsrch(signsrch_path)
 
     for name, data in sigs.items():
         split_set = set(data.split(", "))
@@ -724,7 +719,3 @@ def run_signsrch_exps(
     gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path)
 
     print("Completed Signsrch Experiments")
-
-
-if __name__ == "__main__":  # retained for debugging
-    run_signsrch_exps(model_config_path="../config/experiment_config.yaml")
