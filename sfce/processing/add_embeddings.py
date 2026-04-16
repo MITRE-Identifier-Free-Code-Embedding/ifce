@@ -1,7 +1,10 @@
 import sys
 from pathlib import Path
+
 parent_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(parent_dir)) # This is bad form but want to prevent necessitating a package install
+sys.path.append(
+    str(parent_dir)
+)  # This is bad form but want to prevent necessitating a package install
 from modeling.models import MODEL_CLASS_MAP
 from datasets import load_from_disk
 from tqdm import tqdm
@@ -184,7 +187,9 @@ def create_embeddings(
     data_directory: str,
     model_config_path: str,
     batch_size: int,
-    out_path: str = str(Path(__file__).resolve().parent.parent / Path("experiment_results")),
+    out_path: str = str(
+        Path(__file__).resolve().parent.parent / Path("experiment_results")
+    ),
     tsne_per_rep_limit: int = 5000,
     overwrite: bool = False,
 ):
@@ -265,7 +270,9 @@ def create_embeddings(
 def just_embeddings(
     data_directory,
     model_config_path,
-    out_path: str = str(Path(__file__).resolve().parent.parent / Path("experiment_results")),
+    out_path: str = str(
+        Path(__file__).resolve().parent.parent / Path("experiment_results")
+    ),
 ):
     yaml_config = yaml_safe_load(model_config_path)
     new_ds_directory = f"{data_directory}_embedded"
@@ -282,7 +289,7 @@ def just_embeddings(
 if __name__ == "__main__":
     # Retained for test case
 
-    DATA_DIR = f"{os.path.expanduser("~")}/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd"
-    CONFIG_PATH = f"{os.path.expanduser("~")}/semantic-free-code-embedding/config/experiment_config.yaml"
+    DATA_DIR = f"{os.path.expanduser('~')}/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd"
+    CONFIG_PATH = f"{os.path.expanduser('~')}/semantic-free-code-embedding/config/experiment_config.yaml"
     BATCH_SIZE = 64
-    #just_embeddings(data_directory=DATA_DIR, model_config_path=CONFIG_PATH)
+    # just_embeddings(data_directory=DATA_DIR, model_config_path=CONFIG_PATH)

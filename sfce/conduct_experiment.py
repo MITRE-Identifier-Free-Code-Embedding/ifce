@@ -14,21 +14,21 @@ def arg_parse():
 
     parser.add_argument(
         "--data_dir_path",
-        default=f"{os.path.expanduser("~")}/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd",
+        default=f"{os.path.expanduser('~')}/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd",
         type=str,
         help="The path to the directory to process.",
     )
 
     parser.add_argument(
         "--yaml_file_path",
-        default=f"{os.path.expanduser("~")}/semantic-free-code-embedding/config/experiment_config.yaml",
+        default=f"{os.path.expanduser('~')}/semantic-free-code-embedding/config/experiment_config.yaml",
         type=str,
         help="The path to the yaml config.",
     )
 
     parser.add_argument(
         "--signsrch_path",
-        default=f"{os.path.expanduser("~")}/semantic-free-code-embedding/data/signsrch.sig",
+        default=f"{os.path.expanduser('~')}/semantic-free-code-embedding/data/signsrch.sig",
         type=str,
         help="The path to the Signsrch Sig file.",
     )
@@ -46,14 +46,17 @@ def arg_parse():
     args = parser.parse_args()
     return args
 
+
 def conduct_experiment():
 
     args = arg_parse()
 
-    processed_embeddings_ds = create_embeddings(data_directory=args.data_dir_path,
-                      model_config_path=args.yaml_file_path,
-                       batch_size=args.batch_size)
-    
+    processed_embeddings_ds = create_embeddings(
+        data_directory=args.data_dir_path,
+        model_config_path=args.yaml_file_path,
+        batch_size=args.batch_size,
+    )
+
     model_names, sim_files = find_distances(
         data_input_dir=processed_embeddings_ds,
         model_config_path=args.yaml_file_path,
@@ -75,4 +78,3 @@ def conduct_experiment():
 
 if __name__ == "__main__":
     conduct_experiment()
-

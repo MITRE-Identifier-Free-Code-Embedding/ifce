@@ -1,6 +1,7 @@
 from datasets import load_from_disk
 import sys
 import pathlib
+
 sys.path.append(pathlib.Path(__file__).resolve().parent)
 from processing.add_embeddings import yaml_safe_load
 from pandas import DataFrame
@@ -33,7 +34,6 @@ def cosine_matrix_calculation(full_embeddings, device: str, split_size=1024):
         desc="Calculating cosine distances",
     )
     while split_already < num_data_points:
-
         partial_embeddings = full_embeddings[split_already : split_already + split_size]
 
         partial_cosine_matrix = partial_embeddings @ full_embeddings.T  # [2N,2N]
@@ -60,24 +60,21 @@ def find_distances(
     similarity_files = []
 
     for model in model_list:
-
         new_file_path = (
             pathlib.Path(__file__).parent.parent.resolve()
             / "data"
             / f"cosine_{model}.parquet"
         )
-        if (
-            new_file_path.is_file() and caching and not save_euclidean
-        ):  # caching
+        if new_file_path.is_file() and caching and not save_euclidean:  # caching
             similarity_files.append(new_file_path)
             continue
         # Figure out embedding dimension from the first row
         ex0 = ds[0]
         d_source = len(ex0[f"{model}-embedding-source"])
         d_decomp = len(ex0[f"{model}-embedding-decompilation"])
-        assert (
-            d_source == d_decomp
-        ), "Source and decompilation embeddings must have same dim"
+        assert d_source == d_decomp, (
+            "Source and decompilation embeddings must have same dim"
+        )
         dim = d_source
 
         num_ids = ds_length * 2
@@ -121,7 +118,6 @@ def find_distances(
             distances.append((euclidean_matrix, "euclidean"))
 
         for matrix, distance_type in distances:
-
             df = DataFrame(
                 matrix,
                 columns=all_ids,

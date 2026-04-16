@@ -9,7 +9,11 @@ from modeling.models import MODEL_SIZE_MAP
 from pathlib import Path
 from typing import List
 from datasets import load_from_disk
-from visualization.visualizations import log_histogram, trimmed_quantile_boxplot, scatter_with_fit
+from visualization.visualizations import (
+    log_histogram,
+    trimmed_quantile_boxplot,
+    scatter_with_fit,
+)
 
 K_FOR_RECALLS = [1, 3, 5, 10]
 
@@ -615,7 +619,6 @@ def analyze_sims(
     )
 
     for model_name, parquet_path in zip(model_names, cosine_parquet_paths):
-
         df = pd.read_parquet(parquet_path, engine="pyarrow")
 
         half_length = round(len(df) / 2)
@@ -676,8 +679,9 @@ def analyze_sims(
                 s2d_reciprocal_rank_of_just_decomp,
             ]
         )
-        s2d_ranked_all, s2d_ranked_decomp = np.array(s2d_ranked_all), np.array(
-            s2d_ranked_decomp
+        s2d_ranked_all, s2d_ranked_decomp = (
+            np.array(s2d_ranked_all),
+            np.array(s2d_ranked_decomp),
         )
 
         d2s_ranked_all, d2s_ranked_source = (
@@ -687,8 +691,9 @@ def analyze_sims(
                 d2s_reciprocal_rank_of_just_source,
             ]
         )
-        d2s_ranked_all, d2s_ranked_source = np.array(d2s_ranked_all), np.array(
-            d2s_ranked_source
+        d2s_ranked_all, d2s_ranked_source = (
+            np.array(d2s_ranked_all),
+            np.array(d2s_ranked_source),
         )
 
         candidates = {

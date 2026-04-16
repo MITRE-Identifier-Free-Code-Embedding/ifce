@@ -24,7 +24,7 @@ def arg_parse():
 
     parser.add_argument(
         "--data_dir_path",
-        default=f"{os.path.expanduser("~")}/semantic-free-code-embedding/data/decompiled_summaries_TRAIN",
+        default=f"{os.path.expanduser('~')}/semantic-free-code-embedding/data/decompiled_summaries_TRAIN",
         type=str,
         help="The path to the directory to process.",
     )
@@ -45,20 +45,22 @@ def arg_parse():
         "--grad_accum_steps",
         default=2,
         type=int,
-        help="Gradient accumulatioin steps. Should match the train config"
+        help="Gradient accumulatioin steps. Should match the train config",
     )
 
-    parser.add_argument(
-        "--batch_size",
-        default=64,
-        type=int,
-        help="Batch size"
-    )
+    parser.add_argument("--batch_size", default=64, type=int, help="Batch size")
 
     args = parser.parse_args()
     return args
 
-def train(ds_path: str, model_name: str, model_short_name:str, grad_accum_steps:int, batch_size:int):
+
+def train(
+    ds_path: str,
+    model_name: str,
+    model_short_name: str,
+    grad_accum_steps: int,
+    batch_size: int,
+):
 
     # model init
     model = SentenceTransformer(model_name)
@@ -68,9 +70,7 @@ def train(ds_path: str, model_name: str, model_short_name:str, grad_accum_steps:
     ds = load_from_disk(ds_path)["train"]
     ds = ds.rename_columns(
         {"decompilation": "anchor", "source": "positive"}
-    ).remove_columns(
-        "summary"
-    )  # may use this later
+    ).remove_columns("summary")  # may use this later
 
     half_length = int(
         round(model.max_seq_length / 2)
@@ -86,20 +86,22 @@ def train(ds_path: str, model_name: str, model_short_name:str, grad_accum_steps:
             "anchor": encode_decode(x["anchor"]),
             "positive": encode_decode(x["positive"]),
         }
-    )  #not totally convinced the data is getting truncated, so we do it manually.
+    )  # not totally convinced the data is getting truncated, so we do it manually.
 
     ds = ds.select_columns(["anchor", "positive"])
     split_ds = ds.train_test_split(test_size=0.01)
     train_ds, val_ds = split_ds["train"], split_ds["test"]
 
     mini_batch_size = 1  # In nearly every case, this should always be 1
-    eval_batch_size = max(int(batch_size/16), 1) # just to be safe
+    eval_batch_size = max(int(batch_size / 16), 1)  # just to be safe
 
     # misc init
     loss = CachedMultipleNegativesRankingLoss(model, mini_batch_size=mini_batch_size)
 
     run_name = f"mitRE_embed_{model_name}_test"
-    out_path = Path(__file__).resolve().parent.parent / Path(f"models/mitRE_embed_{model_short_name}/{run_name}")
+    out_path = Path(__file__).resolve().parent.parent / Path(
+        f"models/mitRE_embed_{model_short_name}/{run_name}"
+    )
 
     args = SentenceTransformerTrainingArguments(
         dataloader_drop_last=True,
@@ -122,7 +124,7 @@ def train(ds_path: str, model_name: str, model_short_name:str, grad_accum_steps:
         save_total_limit=2,
         logging_steps=1,
         logging_first_step=True,
-        run_name=run_name, 
+        run_name=run_name,
         report_to="tensorboard",
         skip_memory_metrics=False,
         save_safetensors=True,
@@ -140,4 +142,10 @@ def train(ds_path: str, model_name: str, model_short_name:str, grad_accum_steps:
 
 if __name__ == "__main__":
     args = arg_parse()
-    train(ds_path=args.data_dir_path, model_name=args.model_name, model_short_name=args.model_short_name,grad_accum_steps=args.grad_accum_steps,batch_size=args.batch_size)
+    train(
+        ds_path=args.data_dir_path,
+        model_name=args.model_name,
+        model_short_name=args.model_short_name,
+        grad_accum_steps=args.grad_accum_steps,
+        batch_size=args.batch_size,
+    )

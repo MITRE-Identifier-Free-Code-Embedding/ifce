@@ -361,7 +361,7 @@ def get_embeddings_from_model(keys, local_model, batch_size, model_name):
     ):
         end = start + batch_size
         batch_keys = keys[start:end]
-        if isinstance(batch_keys,str):
+        if isinstance(batch_keys, str):
             batch_keys = [batch_keys]  # edge case?
         batch_embeddings = local_model.embed_batch(batch_keys)
 
@@ -605,7 +605,9 @@ def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
     )
 
 
-def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None, batch_size: int = 512):
+def run_signsrch_exps(
+    model_config_path: str, signsrch_path: str | None = None, batch_size: int = 512
+):
 
     # Takes one input arg: path to signsrch.sig file
     if len(sys.argv) < 2 and signsrch_path is None:
@@ -617,9 +619,7 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None, 
     sigs = parse_signsrch(signsrch_path if signsrch_path is not None else sys.argv[1])
 
     for name, data in sigs.items():
-        split_set = set(
-            data.split(", ")
-        ) 
+        split_set = set(data.split(", "))
         sigs[name] = split_set
 
     reversed_sigs = {}
@@ -642,7 +642,6 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None, 
             embedding_dictionary_keys.add(d)
 
     for model_name in yaml_config["models"]:
-
         keys = list(embedding_dictionary_keys)
         embedding_dictionary = _get_embeddings_cached(
             keys=keys,
@@ -665,7 +664,9 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None, 
 
         # Experiment 1: for each algorithm, rank constants
 
-        procs = int(cpu_count * 7 / 8) # we arbitrarily select 7/8s of the available pool
+        procs = int(
+            cpu_count * 7 / 8
+        )  # we arbitrarily select 7/8s of the available pool
         APs = []
 
         sorted_keys = sorted(sigs.keys())
@@ -683,7 +684,6 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None, 
                 desc=f"Processing signatures during Experiment 1 for {model_name}",
             )
         ):
-
             relevant = sigs[sig]
             ranked = list(
                 constants_ranked_by_algorithm[i]
@@ -726,5 +726,5 @@ def run_signsrch_exps(model_config_path: str, signsrch_path: str | None = None, 
     print("Completed Signsrch Experiments")
 
 
-if __name__ == "__main__": # retained for debugging
+if __name__ == "__main__":  # retained for debugging
     run_signsrch_exps(model_config_path="../config/experiment_config.yaml")
