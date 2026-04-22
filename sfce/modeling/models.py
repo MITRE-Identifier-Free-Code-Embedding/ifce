@@ -601,9 +601,14 @@ MODEL_SIZE_MAP = {
 
 for entry in Path(Path(THIS_FILES_PARENT_DIRECTORY) / "models").iterdir():
     if entry.is_dir():
-        MODEL_CLASS_MAP.update({entry.name: OnlineCustomEmbeddingModel})
-        MODEL_SIZE_MAP.update(
-            {entry.name: 0.6}
-        )  # Hardcoded for now, needs adjusting if new custom model is introduced.
+        if "Qwen" in entry.name:
+            MODEL_CLASS_MAP.update({entry.name: OnlineCustomEmbeddingModel})
+            MODEL_SIZE_MAP.update(
+                {entry.name: 0.6}
+            )  # Hardcoded for now, needs adjusting if new custom model is introduced.
+        else:
+            raise ValueError(
+                "Please update MODEL_CLASS_MAP to reflect any new model types that are not Qwen3-Embedding-0.6B"
+            )
 
 assert set(MODEL_CLASS_MAP.keys()) == set(MODEL_SIZE_MAP.keys())
