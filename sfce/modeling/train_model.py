@@ -98,7 +98,7 @@ def train(
     # misc init
     loss = CachedMultipleNegativesRankingLoss(model, mini_batch_size=mini_batch_size)
 
-    run_name = f"mitRE_embed_{model_name}_test"
+    run_name = f"mitRE_embed_{model_name.replace('/', '_')}_test"
     out_path = Path(__file__).resolve().parent.parent / Path(
         f"models/mitRE_embed_{model_short_name}/{run_name}"
     )
