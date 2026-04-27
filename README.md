@@ -1,4 +1,4 @@
-# semantic free code embedding
+# identifier free code embedding
 
 ## Overview
 
@@ -80,4 +80,4 @@ Evaluation results will populate in sfce/experiment_results. Some intermediate a
 
 ### Copyright
 
-Copyright ©2026 The MITRE Corporation. ALL RIGHTS RESERVED.
+Copyright ©2026 The MITRE Corporation. ALL RIGHTS RESERVED. Public Release Case Number 26-0894.
