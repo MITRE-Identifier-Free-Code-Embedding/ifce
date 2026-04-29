@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository exists to reproduce the experiments performed in the paper Semantic Free Code Embedding Models for Scalable Search 
+This repository exists to reproduce the experiments performed in the paper Identifier Free Code Embedding Models for Scalable Search 
 
 This experiment suite is designed to test and improve code embedding models at positioning their embeddings in space according to what a function does, and not how its variables are named.
 
