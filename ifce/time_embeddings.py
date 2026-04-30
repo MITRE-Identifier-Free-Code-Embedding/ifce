@@ -28,6 +28,8 @@ import seaborn as sns
 import re
 import pandas as pd
 import gc
+import os
+import argparse
 
 
 TARGET_EMBED_COUNT = 10_000
@@ -38,7 +40,30 @@ VLLM_MEM_PATTERNS = {
 }
 
 
-def get_memory(log_file, all_mem_stats, model_name: str):  # TODO fix this stuff
+def arg_parse():
+    parser = argparse.ArgumentParser(
+        description="Conduct Model Timing Experiment.",
+        epilog="",
+    )
+
+    parser.add_argument(
+        "--data_dir_path",
+        default=f"{os.path.expanduser('~')}/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd",
+        type=str,
+        help="The path to the directory to process.",
+    )
+
+    parser.add_argument(
+        "--model_config_path",
+        default=f"{os.path.expanduser('~')}/semantic-free-code-embedding/config/time_experiment_config.yaml",
+        type=str,
+    )
+
+    args = parser.parse_args()
+    return args
+
+
+def get_memory(log_file, all_mem_stats, model_name: str):
 
     # After health check confirms server is up
     mem_stats = {k: None for k in VLLM_MEM_PATTERNS}
@@ -70,8 +95,7 @@ def write_mem_stats(all_mem_stats, out_path):
     # Save CSV with both columns
     df.to_csv(out_path / "vram_usage.csv")
 
-    # ---- Plot *only* weights by model ----
-    sns.set_theme(style="whitegrid", palette="pastel")  # [web:6][web:10]
+    sns.set_theme(style="whitegrid", palette="pastel")
 
     df_plot = df.reset_index()  # keep all cols, but only use Weights (GiB) in the plot
 
@@ -79,7 +103,7 @@ def write_mem_stats(all_mem_stats, out_path):
     ax = sns.barplot(
         data=df_plot,
         x="Model",
-        y="Weights (GiB)",  # single variable barplot [web:4][web:16][web:24]
+        y="Weights (GiB)",
         edgecolor="black",
     )
 
@@ -95,14 +119,7 @@ def write_mem_stats(all_mem_stats, out_path):
 
 
 def plot_embed_times(timing_results: dict[str, dict], out_path: Path):
-    """
-    timing_results: {
-        model_name: {
-            "decompilation": float (seconds per 10k),
-            "source":        float (seconds per 10k)
-        }
-    }
-    """
+
     models = list(timing_results.keys())
     keys = ["decompilation", "source"]
     palette = {"decompilation": "#4C72B0", "source": "#DD8452"}
@@ -112,8 +129,6 @@ def plot_embed_times(timing_results: dict[str, dict], out_path: Path):
         for model in models
         for key in keys
     ]
-
-    import pandas as pd
 
     df = pd.DataFrame(rows)
 
@@ -227,7 +242,8 @@ def main(
 
 
 if __name__ == "__main__":
+    args = arg_parse()
     main(
-        model_config_path="../config/time_experiment_config.yaml",
-        data_directory="../data/decompiled_summaries_TEST_copy_idd/",
+        model_config_path=args.model_config_path,
+        data_directory=args.data_dir_path,
     )
