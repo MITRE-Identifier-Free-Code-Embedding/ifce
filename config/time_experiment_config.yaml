@@ -2,10 +2,6 @@
 
 models:
   [
-    #cpu_mitRE_embed_quant_Qwen-0.6B,
-    #cpu_mitRE_embed__Qwen-0.6B,
     mitRE_embed_quant_Qwen-0.6B,
     mitRE_embed__Qwen-0.6B,
-    
-
   ]

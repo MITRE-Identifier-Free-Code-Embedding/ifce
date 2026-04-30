@@ -2,11 +2,11 @@
 
 ## Overview
 
-This repository exists to reproduce the experiments performed in the paper Semantic Free Code Embedding Models for Scalable Search 
+This repository exists to reproduce the experiments performed in the paper Identifier Free Code Embedding Models for Scalable Search 
 
-This experiment suite is designed to test and improve code embedding models at positioning their embeddings in space according to what a function does, and not how its variables are named.
+This experiment suite is designed to test and improve code embedding models at positioning their embeddings in space according to what a function does, and not how its variables are named or its identifiers.
 
-This is accomplished by training with a contrastive learning objective that associates functions with their pseudo-c representations, instead of those with similar naming conventions or source representations.
+This is accomplished by training with a contrastive learning objective that associates functions with their pseudo-c (decompiled) representations, instead of those with similar naming conventions or source representations.
 
 Evaluation is accomplished through the following benchmarks:
 
@@ -28,13 +28,15 @@ uv sync
 
 will automatically ensure your environment is configured correctly according to the pyproject.toml file.
 
-Download the appropriate datasets into the dataset directory and pass them into conduct_experiment.py. For instance, the Signsrch dataset:
+Download the appropriate datasets and pass them into conduct_experiment.py. For instance, the Signsrch dataset:
 
 ```bash
 wget https://aluigi.altervista.org/mytoolz/signsrch.sig.zip 
 unzip signsrch.sig.zip
 mv signsrch.sig ./data
 ```
+
+Our variant of the Assemblage test dataset should be either included with the repo at /data/ or available from Huggingface (link TBD).
 
 ## Training
 
@@ -47,20 +49,20 @@ uv run accelerate config
 To train a new model with the train_model.py script:
 
 ```bash
-uv run accelerate launch sfce/modeling/train_model.py --data_dir_path $TRAIN_ASSEMBLAGE_PATH
+uv run accelerate launch ifce/modeling/train_model.py --data_dir_path $TRAIN_ASSEMBLAGE_PATH
 ```
 
-The resulting model should populate the sfce/models directory for its detection during evaluation.
+The resulting model should populate the ifce/models directory for its detection during evaluation.
 
 ## Evaluation
 
 To run evaluation, use:
 
 ```bash
-uv run python sfce/conduct_experiment.py --data_dir_path $TEST_ASSEMBLAGE_PATH --yaml_file_path $CONFIG_PATH --signsrch_path $SIGNSRCH_PATH
+uv run python ifce/conduct_experiment.py --data_dir_path $TEST_ASSEMBLAGE_PATH --yaml_file_path $CONFIG_PATH --signsrch_path $SIGNSRCH_PATH
 ```
 
-Evaluation results will populate in sfce/experiment_results. Some intermediate artifacts will be saved in the data directory. For example, latex tables will be generated that should look similar to:
+Evaluation results will populate in ifce/experiment_results. Some intermediate artifacts will be saved in the data directory. For example, latex tables will be generated that should look similar to:
 
 **Table: MRR, MRR@k and Recall@k for Searching Decompiled to Source, Decompilation and Source Candidates.**
 | Model                                 | MRR    | Recall@1 | Recall@5 | Recall@10 | MRR@10 |
@@ -77,6 +79,14 @@ Evaluation results will populate in sfce/experiment_results. Some intermediate a
 | SFR-Embedding-Mistral                 | 0.0671 | 0.0508   | 0.0842   | 0.0980    | 0.0649 |
 | jina-embeddings-v2-base-code          | 0.0001 | 0.0000   | 0.0000   | 0.0000    | 0.0000 |
 | nomic-embed-code                      | 0.0209 | 0.0166   | 0.0253   | 0.0290    | 0.0203 |
+
+## Contents
+
+Scripts are present within the /ifce directory. Experimental results (figures, tables, etc.), and models are made available after running these scripts under /ifce/experiment_results and /ifce/models.
+
+Although not strictly required by the scripts, data may be stored under the /data directory. Intermediate products, such as matrices of cosine similarity and stored embeddings, will also be stored in /data.
+
+Configuration yamls are stored under /config. These correspond to scripts for timing, training, and testing experiments.
 
 ### Copyright
 
