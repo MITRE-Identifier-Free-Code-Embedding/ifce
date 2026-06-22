@@ -1,10 +1,10 @@
-# identifier free code embedding
+# Identifier-Free Code Embedding
 
 ## Overview
 
-This repository exists to reproduce the experiments performed in the paper Identifier Free Code Embedding Models for Scalable Search 
+This repository exists to reproduce the experiments performed in the paper [Identifier Free Code Embedding Models for Scalable Search](https://arxiv.org/abs/2605.05251).
 
-This experiment suite is designed to test and improve code embedding models at positioning their embeddings in space according to what a function does, and not how its variables are named or its identifiers.
+This experiment suite is designed to test and improve code embedding models at positioning their embeddings in space according to what a function does, and not how its variables are named or the identifiers it contains.
 
 This is accomplished by training with a contrastive learning objective that associates functions with their pseudo-c (decompiled) representations, instead of those with similar naming conventions or source representations.
 
