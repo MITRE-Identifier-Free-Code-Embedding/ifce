@@ -1,1 +1,50 @@
+# Python
 __pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Model weights / checkpoints
+*.pt
+*.pth
+*.safetensors
+*.bin
+*.ckpt
+
+# Generated data artifacts
+*.parquet
+*.npy
+*.npz
+*.pkl
+
+# Generated outputs (keep the directory scaffolding via .gitkeep)
+outputs/**
+!outputs/
+!outputs/**/
+!outputs/**/.gitkeep
+
+# Datasets (track only the small signsrch signature DB)
+data/*
+!data/signsrch.sig
+
+# Hugging Face / model caches
+.cache/
+hf_cache/
+
+# Planning docs (not part of the release)
+*-plan.md
+*_plan.md
+plan.md
+design.md
+*-design.md
+IMPLEMENTATION_PLAN.md
