@@ -547,8 +547,10 @@ class NomicAIEmbeddingModel(BaseSentenceTransformerModel):
         name: str,
         base_name: str = "nomic-ai",
         device: str = "cpu",
-        model_kwargs={"dtype": "bfloat16"},
+        model_kwargs=None,
     ):
+        if model_kwargs is None:
+            model_kwargs = {"dtype": "bfloat16"}
         super().__init__(
             name=name, base_name=base_name, device=device, model_kwargs=model_kwargs
         )

@@ -352,9 +352,13 @@ def knn_conformal_ood_with_pairs(
 
 
 def main(
-    model_list=["Qwen3-Embedding-0.6B"],
-    similarity_files=["../data/cosine_Qwen3-Embedding-0.6B.parquet"],
+    model_list=None,
+    similarity_files=None,
 ):
+    if model_list is None:
+        model_list = ["Qwen3-Embedding-0.6B"]
+    if similarity_files is None:
+        similarity_files = ["../data/cosine_Qwen3-Embedding-0.6B.parquet"]
 
     if not model_list:
         # 1) Build cosine similarity parquet files (per model)
@@ -370,7 +374,7 @@ def main(
     train_frac = 0.5  # fraction of ids used as kNN reference set
     ood_val_frac = 0.5  # fraction of OOD candidates used for validation vs test
 
-    for model, cosine_path in zip(model_list, similarity_files):
+    for model, cosine_path in zip(model_list, similarity_files, strict=False):
         results = knn_conformal_ood_with_pairs(
             cosine_parquet_path=str(cosine_path),
             k_list=k_list,

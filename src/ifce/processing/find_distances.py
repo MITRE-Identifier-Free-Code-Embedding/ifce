@@ -76,7 +76,7 @@ def find_distances(
         num_ids = ds_length * 2
         # full_embeddings[id] will contain the embedding for that id
 
-        def _collate_fn(batch):
+        def _collate_fn(batch, model=model):
             src_ids = torch.tensor([ex["source_id"] for ex in batch])
             dec_ids = torch.tensor([ex["decompilation_id"] for ex in batch])
             src_embs = torch.stack(
@@ -134,5 +134,7 @@ def find_distances(
             ):  # TODO modify other to support non cosine distances
                 similarity_files.append(new_file_path)
 
-    print(f"Processed cosine distances at {dict(zip(model_list, similarity_files))}")
+    print(
+        f"Processed cosine distances at {dict(zip(model_list, similarity_files, strict=False))}"
+    )
     return model_list, similarity_files

@@ -562,12 +562,16 @@ def make_latex_summary_table(
 
 
 def get_stats_for_f1(
-    model_list=["Qwen3-Embedding-0.6B", "bge-small-en-v1.5"],
-    similarity_files=[
-        "../data/cosine_Qwen3-Embedding-0.6B.parquet",
-        "../data/cosine_bge-small-en-v1.5.parquet",
-    ],
+    model_list=None,
+    similarity_files=None,
 ):
+    if model_list is None:
+        model_list = ["Qwen3-Embedding-0.6B", "bge-small-en-v1.5"]
+    if similarity_files is None:
+        similarity_files = [
+            "../data/cosine_Qwen3-Embedding-0.6B.parquet",
+            "../data/cosine_bge-small-en-v1.5.parquet",
+        ]
 
     out_path = RESULTS_DIR
     os.makedirs(out_path, exist_ok=True)
@@ -586,7 +590,9 @@ def get_stats_for_f1(
     for distance_type in ["Cosine", "Euclidean"]:
         results_by_model = {}
 
-        for model, distance_file_path in zip(model_list, similarity_files):
+        for model, distance_file_path in zip(
+            model_list, similarity_files, strict=False
+        ):
             if distance_type.lower() not in distance_file_path:
                 continue
 

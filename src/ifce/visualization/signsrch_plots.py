@@ -42,7 +42,7 @@ def plot_group_map_bars(
     colors = [tab20(i / max(len(models) - 1, 1)) for i in range(len(models))]
 
     fig, ax = plt.subplots(figsize=figsize)
-    for i, (model, color) in enumerate(zip(models, colors)):
+    for i, (model, color) in enumerate(zip(models, colors, strict=False)):
         vals = [
             plot_df.loc[
                 (plot_df["model"] == model) & (plot_df["group"] == g), "MAP"

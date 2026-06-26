@@ -297,7 +297,7 @@ def _attach_metric_se_columns(df_group, candidate_group, all_ranks, k_for_recall
     for metric in metric_cols:
         se_col = f"{metric}_SE"
         df_group[se_col] = df_group[model_col].map(
-            lambda m: se_by_model[m].get(metric, np.nan)
+            lambda m, metric=metric: se_by_model[m].get(metric, np.nan)
         )
 
     return df_group
@@ -324,7 +324,7 @@ def _plot_metric_with_errorbars(
     palette_size = sns.color_palette("tab20", n_hue)
 
     fig, ax = plt.subplots(figsize=(13, 10), constrained_layout=True)
-    for i, (hue_val, offset) in enumerate(zip(hue_levels, offsets)):
+    for i, (hue_val, _offset) in enumerate(zip(hue_levels, offsets, strict=False)):
         sub = df_plot[df_plot["size (B of params)"] == hue_val]
         means = np.array(
             [
@@ -385,7 +385,7 @@ def _plot_metric_with_errorbars(
     # colors = [tab20(i / max(len(models) - 1, 1)) for i in range(len(models))]
 
     fig, ax = plt.subplots(figsize=(16, 12), constrained_layout=True)
-    for i, (hue_val, offset) in enumerate(zip(hue_levels, offsets)):
+    for i, (hue_val, _offset) in enumerate(zip(hue_levels, offsets, strict=False)):
         sub = df_plot[df_plot["size (B of params)"] == hue_val]
         means = np.array(
             [
@@ -410,7 +410,7 @@ def _plot_metric_with_errorbars(
         # Assign color per x-position, not per hue group
         bar_colors = [palette_model[j] for j in range(n_x)]
         for j, (x_pos, mean, se, color) in enumerate(
-            zip(x_base, means, ses, bar_colors)
+            zip(x_base, means, ses, bar_colors, strict=False)
         ):
             ax.bar(
                 x_pos,
@@ -541,7 +541,7 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
     for candidate_group in candidate_groups:
         plt.figure(figsize=(10, 7), constrained_layout=True)
         palette = sns.color_palette("tab20", n_colors=len(model_names))
-        for color, model_name in zip(palette, model_names):
+        for color, model_name in zip(palette, model_names, strict=False):
             ranks = all_ranks[(model_name, candidate_group)]
             # ECDF gives Recall@k curve: P(rank <= n) vs n
             sns.ecdfplot(data=ranks, stat="proportion", label=model_name, color=color)
@@ -621,7 +621,9 @@ def analyze_sims(
         filename=f"{out_path}/function_sigs_boxplot.png",
     )
 
-    for model_name, parquet_path in zip(model_names, cosine_parquet_paths):
+    for model_name, parquet_path in zip(
+        model_names, cosine_parquet_paths, strict=False
+    ):
         df = pd.read_parquet(parquet_path, engine="pyarrow")
 
         half_length = round(len(df) / 2)

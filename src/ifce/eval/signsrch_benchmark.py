@@ -367,7 +367,7 @@ def get_embeddings_from_model(keys, local_model, batch_size, model_name):
             batch_keys = [batch_keys]  # edge case?
         batch_embeddings = local_model.embed_batch(batch_keys)
 
-        for k, emb in zip(batch_keys, batch_embeddings):
+        for k, emb in zip(batch_keys, batch_embeddings, strict=False):
             embedding_dictionary[k] = emb
     return embedding_dictionary
 
@@ -397,11 +397,9 @@ def _get_embeddings_cached(
         except Exception as e:
             print(f"retrying... attempt {i}")
             if i == max_attempts - 1:
-                raise (
-                    ValueError(
-                        f"Model {model_name} cannot be loaded with exception: {e}"
-                    )
-                )
+                raise ValueError(
+                    f"Model {model_name} cannot be loaded with exception: {e}"
+                ) from e
         sleep(5)
     sleep(5)
 
@@ -458,7 +456,7 @@ def get_group_MAPs(
     # Group APs by algorithm name
     group_aps: dict[str, list[float]] = {name: [] for name in sigs}
     for _, (constant, ranked) in enumerate(
-        tqdm(zip(all_constants, all_ranked), desc="Finding group APs")
+        tqdm(zip(all_constants, all_ranked, strict=False), desc="Finding group APs")
     ):
         algo_names = reversed_sigs[constant]
         for algo_name in algo_names:
