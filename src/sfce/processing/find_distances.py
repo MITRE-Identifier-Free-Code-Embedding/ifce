@@ -1,34 +1,17 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from datasets import load_from_disk
-import sys
-import pathlib
-
-sys.path.append(pathlib.Path(__file__).resolve().parent)
-from processing.add_embeddings import yaml_safe_load
-from pandas import DataFrame
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
 import numpy as np
-from tqdm import tqdm
 import torch
 import torch.nn.functional as F
-
+from datasets import load_from_disk
+from pandas import DataFrame
 from sklearn.metrics import pairwise_distances
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+from sfce.config import yaml_safe_load
+from sfce.device import get_device
+from sfce.paths import DATA_DIR
 
 
 def cosine_matrix_calculation(full_embeddings, device: str, split_size=1024):
@@ -73,15 +56,11 @@ def find_distances(
 
     yaml_config_data = yaml_safe_load(model_config_path)
     model_list = yaml_config_data["models"]
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = get_device()
     similarity_files = []
 
     for model in model_list:
-        new_file_path = (
-            pathlib.Path(__file__).parent.parent.parent.resolve()
-            / "data"
-            / f"cosine_{model}.parquet"
-        )
+        new_file_path = DATA_DIR / f"cosine_{model}.parquet"
         if new_file_path.is_file() and caching and not save_euclidean:  # caching
             similarity_files.append(new_file_path)
             continue

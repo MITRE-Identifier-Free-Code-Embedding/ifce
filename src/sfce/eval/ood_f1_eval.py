@@ -1,34 +1,20 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from pathlib import Path
-
-from find_distances import find_distances
-import numpy as np
-import pandas as pd
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
 import math
 import os
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from sklearn.metrics import (
-    roc_curve,
-    precision_recall_curve,
     auc,
     average_precision_score,
+    precision_recall_curve,
+    roc_curve,
 )
+
+from sfce.paths import RESULTS_DIR
+from sfce.processing.find_distances import find_distances
 
 
 def partner_index(i: int, num_ids: int) -> int:
@@ -583,7 +569,7 @@ def get_stats_for_f1(
     ],
 ):
 
-    out_path = Path(__file__).resolve().parent / Path("experiment_results")
+    out_path = RESULTS_DIR
     os.makedirs(out_path, exist_ok=True)
 
     if not model_list:
@@ -591,6 +577,7 @@ def get_stats_for_f1(
         model_list, similarity_files = find_distances(
             data_input_dir="path/to/hf_dataset",
             model_config_path="path/to/models.yaml",
+            save_euclidean=False,
         )
 
     # 2) Run F1-optimized kNN OOD detection for each model

@@ -1,35 +1,21 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-import pandas as pd
-import numpy as np
-from joblib import Parallel, delayed
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
 import os
 import pickle
-import seaborn as sns
-import matplotlib.pyplot as plt
-from modeling.models import MODEL_SIZE_MAP
 from pathlib import Path
-from typing import List
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 from datasets import load_from_disk
-from visualization.visualizations import (
+from joblib import Parallel, delayed
+
+from sfce.modeling.models import MODEL_SIZE_MAP
+from sfce.visualization.assemblage_plots import (
     log_histogram,
-    trimmed_quantile_boxplot,
     scatter_with_fit,
+    trimmed_quantile_boxplot,
 )
 
 K_FOR_RECALLS = [1, 3, 5, 10]
@@ -574,7 +560,7 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
 
 
 def analyze_sims(
-    model_names: List[str], cosine_parquet_paths: List[str], data_input_dir: str
+    model_names: list[str], cosine_parquet_paths: list[str], data_input_dir: str
 ):
 
     sns.set(style="whitegrid")

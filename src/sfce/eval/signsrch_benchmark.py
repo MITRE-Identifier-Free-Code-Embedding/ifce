@@ -1,44 +1,29 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from time import sleep
-import re
-import sys
-
-from processing.add_embeddings import yaml_safe_load
-from modeling.models import MODEL_CLASS_MAP
-from tqdm import tqdm
-import pandas as pd
-import numpy as np
-import torch
-import pickle
-from processing.find_distances import cosine_matrix_calculation
-from joblib import Parallel, delayed
-import os
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
 import itertools
-import joblib
-from scipy import stats
+import os
+import pickle
+import re
 from pathlib import Path
-from visualization.signsrch_visualizations import (
+from time import sleep
+
+import joblib
+import numpy as np
+import pandas as pd
+import torch
+from joblib import Parallel, delayed
+from scipy import stats
+from tqdm import tqdm
+
+from sfce.config import yaml_safe_load
+from sfce.modeling.models import MODEL_CLASS_MAP
+from sfce.processing.find_distances import cosine_matrix_calculation
+from sfce.visualization.signsrch_plots import (
     plot_group_map_bars,
-    plot_wilcoxon_pvalue_heatmap,
-    plot_overlaid_kde,
     plot_map_histograms,
     plot_model_comparison_bars,
+    plot_overlaid_kde,
+    plot_wilcoxon_pvalue_heatmap,
 )
 
 memory = joblib.Memory(
@@ -47,7 +32,7 @@ memory = joblib.Memory(
 
 
 def parse_signsrch(filepath: str) -> dict[str, str]:
-    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+    with open(filepath, encoding="utf-8", errors="replace") as f:
         text = f.read()
 
     blocks = re.split(r"#{5,}", text)
@@ -218,8 +203,8 @@ def latex_from_summary(
 
     lines.append(r"    \hline")
     lines.append(r"  \end{tabular}")
-    lines.append(f"  \caption{{{caption}}}")
-    lines.append(f"  \label{{{label}}}")
+    lines.append(rf"  \caption{{{caption}}}")
+    lines.append(rf"  \label{{{label}}}")
     lines.append(r"\end{table}")
 
     content = "\n".join(lines) + "\n"
@@ -594,7 +579,7 @@ def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
         paired_results = paired_tests(AP_dict, alpha=alpha)  # if APs are aligned
         # pprint(paired_results)
 
-        tex_paired = latex_table_paired_wilcoxon(
+        latex_table_paired_wilcoxon(
             paired_results,
             caption=f"Pairwise Wilcoxon signed-rank tests for {map_or_ap} by model, {exp_name}",
             label=f"tab:{map_or_ap.lower()}_paired_wilcoxon",

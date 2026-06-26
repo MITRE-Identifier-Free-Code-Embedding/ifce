@@ -1,24 +1,11 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from find_cosine_sim import find_cosine_sim
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
+import math
+
 import numpy as np
 import pandas as pd
-import math
+
+from sfce.processing.find_distances import find_distances
 
 
 def partner_index(i: int, num_ids: int) -> int:
@@ -371,9 +358,10 @@ def main(
 
     if not model_list:
         # 1) Build cosine similarity parquet files (per model)
-        model_list, similarity_files = find_cosine_sim(
+        model_list, similarity_files = find_distances(
             data_input_dir="path/to/hf_dataset",
             model_config_path="path/to/models.yaml",
+            save_euclidean=False,
         )
 
     # 2) Inductive conformal kNN OOD detection per model, using pair structure

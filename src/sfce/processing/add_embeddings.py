@@ -1,40 +1,22 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-import sys
-from pathlib import Path
-
-parent_dir = Path(__file__).resolve().parent.parent
-sys.path.append(
-    str(parent_dir)
-)  # This is bad form but want to prevent necessitating a package install
-from modeling.models import MODEL_CLASS_MAP
-from datasets import load_from_disk
-from tqdm import tqdm
-import yaml
-from time import sleep
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from sklearn.manifold import TSNE
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
+import gc
 import os
 from pathlib import Path
-from torch import Tensor, is_tensor, cuda
-import gc
+from time import sleep
+
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+from datasets import load_from_disk
+from sklearn.manifold import TSNE
+from torch import Tensor, cuda, is_tensor
+from tqdm import tqdm
+
+from sfce.config import yaml_safe_load
+from sfce.device import get_device
+from sfce.modeling.models import MODEL_CLASS_MAP
+from sfce.paths import RESULTS_DIR
 
 """
 Note "id'd" data refers to data that has been id'd by 
@@ -42,12 +24,6 @@ Note "id'd" data refers to data that has been id'd by
 2. source function (starting from 0 to ds length) and 
 3. decompilation function (starting from ds length to ds length * 2)
 """
-
-
-def yaml_safe_load(filename: str):
-    with open(filename, "r") as file:
-        data = yaml.safe_load(file)
-        return data
 
 
 def _stack_embeddings(emb_list):
@@ -115,7 +91,7 @@ def save_tsne_figures_from_embeddings(
     )
 
     uniques = ["decompilation", "source"]
-    cmap = cm.get_cmap("coolwarm", len(uniques))
+    cmap = matplotlib.colormaps["coolwarm"].resampled(len(uniques))
     color_map = {lab: cmap(i) for i, lab in enumerate(uniques)}
 
     # --- 2D t-SNE
@@ -204,14 +180,12 @@ def create_embeddings(
     data_directory: str,
     model_config_path: str,
     batch_size: int,
-    out_path: str = str(
-        Path(__file__).resolve().parent.parent / Path("experiment_results")
-    ),
+    out_path: str = str(RESULTS_DIR),
     tsne_per_rep_limit: int = 5000,
     overwrite: bool = False,
 ):
 
-    device = "cuda"
+    device = get_device()
     yaml_config = yaml_safe_load(model_config_path)
 
     ds = load_from_disk(data_directory)
@@ -287,9 +261,7 @@ def create_embeddings(
 def just_embeddings(
     data_directory,
     model_config_path,
-    out_path: str = str(
-        Path(__file__).resolve().parent.parent / Path("experiment_results")
-    ),
+    out_path: str = str(RESULTS_DIR),
 ):
     yaml_config = yaml_safe_load(model_config_path)
     new_ds_directory = f"{data_directory}_embedded"

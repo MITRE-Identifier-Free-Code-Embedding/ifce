@@ -1,38 +1,23 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from typing import List
-from transformers import AutoModel, AutoTokenizer
-from FlagEmbedding import BGEM3FlagModel
-import torch
-from vllm import LLM
-import numpy as np
-from sentence_transformers import SentenceTransformer
-import os
-import tempfile
-from pathlib import Path
-import subprocess
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
 import itertools
-import time
+import os
 import signal
-import requests
-from openai import OpenAI
+import subprocess
+import tempfile
+import time
 
-THIS_FILES_PARENT_DIRECTORY = Path(os.path.dirname(os.path.abspath(__file__))).parent
+import numpy as np
+import requests
+import torch
+from sentence_transformers import SentenceTransformer
+from transformers import AutoModel, AutoTokenizer
+
+from sfce.paths import CHECKPOINTS_DIR
+
+# NOTE: vllm (LLM), FlagEmbedding (BGEM3FlagModel) and openai (OpenAI) are
+# imported lazily inside the methods that use them so that importing this module
+# does not require those heavy / GPU-only optional dependencies.
 
 
 class EmbeddingModel:
@@ -41,10 +26,10 @@ class EmbeddingModel:
         self.device = device
         self.model = None
 
-    def embed(self, str_to_embed: str) -> List[float]:
+    def embed(self, str_to_embed: str) -> list[float]:
         raise NotImplementedError
 
-    def embed_batch(self, strs_to_embed: List[str]) -> List[List[float]]:
+    def embed_batch(self, strs_to_embed: list[str]) -> list[list[float]]:
         raise NotImplementedError
 
     def parameter_count(self) -> int:
@@ -67,13 +52,13 @@ class HFEmbeddingModel(EmbeddingModel):
             )
         return sentence_embeddings.to("cpu").tolist()
 
-    def embed(self, str_to_embed: str) -> List[float]:
+    def embed(self, str_to_embed: str) -> list[float]:
         encoded_input = self.tokenizer(
             [str_to_embed], padding=True, truncation=True, return_tensors="pt"
         ).to(self.device)
         return self._infer(encoded_input)
 
-    def embed_batch(self, strs_to_embed: List[str]) -> List[List[float]]:
+    def embed_batch(self, strs_to_embed: list[str]) -> list[list[float]]:
         encoded_input = self.tokenizer(
             strs_to_embed, padding=True, truncation=True, return_tensors="pt"
         ).to(self.device)
@@ -120,7 +105,7 @@ class Qwen3HFEmbeddingModel(HFEmbeddingModel):
 class CustomHFEmbeddingModel(HFEmbeddingModel):
     def __init__(self, name: str, device: str = "cpu"):
         super().__init__(name=name, device=device)
-        models_path = Path(THIS_FILES_PARENT_DIRECTORY) / "models" / name
+        models_path = CHECKPOINTS_DIR / name
         self.model = AutoModel.from_pretrained(models_path, device_map=device).eval()
         self.tokenizer = AutoTokenizer.from_pretrained(models_path)
 
@@ -128,9 +113,11 @@ class CustomHFEmbeddingModel(HFEmbeddingModel):
 class HFBGE3EmbeddingModel(EmbeddingModel):
     def __init__(self, name: str = "bge-m3", device: str = "cpu", **kwargs):
         super().__init__(name, device, **kwargs)
+        from FlagEmbedding import BGEM3FlagModel
+
         self.model = BGEM3FlagModel(f"BAAI/{name}", use_fp16=True)
 
-    def embed(self, str_to_embed: str) -> List[float]:
+    def embed(self, str_to_embed: str) -> list[float]:
         result = self.model.encode(
             [str_to_embed],
             batch_size=1,
@@ -138,7 +125,7 @@ class HFBGE3EmbeddingModel(EmbeddingModel):
         )["dense_vecs"]
         return result.tolist()
 
-    def embed_batch(self, strs_to_embed: List[str]) -> List[List[float]]:
+    def embed_batch(self, strs_to_embed: list[str]) -> list[list[float]]:
         result = self.model.encode(
             strs_to_embed,
             batch_size=len(strs_to_embed),
@@ -155,10 +142,12 @@ class Qwen3EmbeddingModel(EmbeddingModel):
             raise ValueError(f"Name not in possible models: {possible_models}")
         self.prompting = prompting
         self.task_description = "Given a source code function or a decompiled code, find the respective opposite representation of source code or decompilation that is equivalent."
+        from vllm import LLM
+
         self.model = LLM(model=f"Qwen/{self.name}")
         self.truncate_length = self.model.model_config.max_model_len - 1
 
-    def _potentially_add_query(self, str_or_strs: str | List[str]) -> str | List[str]:
+    def _potentially_add_query(self, str_or_strs: str | list[str]) -> str | list[str]:
         if isinstance(str_or_strs, str):
             str_or_strs = (
                 self._get_detailed_instruct(str_or_strs)
@@ -172,14 +161,14 @@ class Qwen3EmbeddingModel(EmbeddingModel):
             ]
         return str_or_strs
 
-    def embed(self, str_to_embed: str) -> List[float]:
+    def embed(self, str_to_embed: str) -> list[float]:
         str_to_embed = self._potentially_add_query(str_to_embed)
         outputs = self.model.embed(
             [str_to_embed], truncate_prompt_tokens=self.truncate_length, use_tqdm=False
         )
         return [np.array(o.outputs.embedding) for o in outputs]
 
-    def embed_batch(self, strs_to_embed: List[str]) -> List[List[float]]:
+    def embed_batch(self, strs_to_embed: list[str]) -> list[list[float]]:
         strs_to_embed = self._potentially_add_query(strs_to_embed)
         outputs = self.model.embed(
             strs_to_embed,
@@ -230,14 +219,14 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
             **kwargs,
         )
 
+        from openai import OpenAI
+
         self.client = OpenAI(
             api_key="EMPTY", base_url=f"http://localhost:{self.port}/v1", timeout=60.0
         )
 
-        models_response = self.client.models.list()
-        matched = next(
-            (m for m in models_response.data if m.id == f"Qwen/{self.name}"), None
-        )
+        # Probe the server so construction fails fast if it is not reachable.
+        self.client.models.list()
         # vLLM doesn't expose max_model_len via the OpenAI models API,
         # so fall back to the value passed in or a safe default
         self.truncate_length = (max_model_len - 1) if max_model_len else 32767
@@ -323,7 +312,7 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
             try:
                 os.killpg(os.getpgid(self._process.pid), signal.SIGTERM)
                 self._process.wait(timeout=15)
-            except:
+            except Exception:
                 os.killpg(os.getpgid(self._process.pid), signal.SIGKILL)
                 self._process.wait()
         if hasattr(self, "_log_file") and self._log_file:
@@ -343,7 +332,7 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
     def _get_detailed_instruct(self, text: str) -> str:
         return f"Instruct: {self.task_description}\nQuery: {text}"
 
-    def _potentially_add_query(self, str_or_strs: str | List[str]) -> str | List[str]:
+    def _potentially_add_query(self, str_or_strs: str | list[str]) -> str | list[str]:
         if isinstance(str_or_strs, str):
             return (
                 self._get_detailed_instruct(str_or_strs)
@@ -363,7 +352,7 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
         )
         return np.array(response.data[0].embedding)
 
-    def embed_batch(self, strs_to_embed: List[str]) -> List[np.ndarray]:
+    def embed_batch(self, strs_to_embed: list[str]) -> list[np.ndarray]:
 
         strs_to_embed = self._potentially_add_query(strs_to_embed)
         response = self.client.embeddings.create(
@@ -393,7 +382,7 @@ class OnlineCustomEmbeddingModel(OnlineQwen3EmbeddingModel):
         self.former_name = "Qwen/Qwen3-Embedding-0.6B"
 
     def _start_server(self, device, gpu_memory_utilization, max_model_len, **kwargs):
-        self.model_path = Path(THIS_FILES_PARENT_DIRECTORY) / "models" / self.name
+        self.model_path = CHECKPOINTS_DIR / self.name
         cmd = [
             "vllm",
             "serve",
@@ -434,7 +423,7 @@ class OnlineCustomEmbeddingModel(OnlineQwen3EmbeddingModel):
         )
         return np.array(response.data[0].embedding)
 
-    def embed_batch(self, strs_to_embed: List[str]) -> List[np.ndarray]:
+    def embed_batch(self, strs_to_embed: list[str]) -> list[np.ndarray]:
 
         strs_to_embed = self._potentially_add_query(strs_to_embed)
         response = self.client.embeddings.create(
@@ -452,11 +441,13 @@ class CustomEmbeddingModelVLLM(EmbeddingModel):
 
         self.prompting = prompting
         self.task_description = "Given a source code function or a decompiled code, find the respective opposite representation of source code or decompilation that is equivalent."
-        self.model_path = Path(THIS_FILES_PARENT_DIRECTORY) / "models" / self.name
+        self.model_path = CHECKPOINTS_DIR / self.name
+        from vllm import LLM
+
         self.model = LLM(model=str(self.model_path))
         self.truncate_length = self.model.model_config.max_model_len - 1
 
-    def _potentially_add_query(self, str_or_strs: str | List[str]) -> str | List[str]:
+    def _potentially_add_query(self, str_or_strs: str | list[str]) -> str | list[str]:
         if isinstance(str_or_strs, str):
             str_or_strs = (
                 self._get_detailed_instruct(str_or_strs)
@@ -470,14 +461,14 @@ class CustomEmbeddingModelVLLM(EmbeddingModel):
             ]
         return str_or_strs
 
-    def embed(self, str_to_embed: str) -> List[float]:
+    def embed(self, str_to_embed: str) -> list[float]:
         str_to_embed = self._potentially_add_query(str_to_embed)
         outputs = self.model.embed(
             [str_to_embed], truncate_prompt_tokens=self.truncate_length, use_tqdm=False
         )
         return [np.array(o.outputs.embedding) for o in outputs]
 
-    def embed_batch(self, strs_to_embed: List[str]) -> List[List[float]]:
+    def embed_batch(self, strs_to_embed: list[str]) -> list[list[float]]:
         strs_to_embed = self._potentially_add_query(strs_to_embed)
         outputs = self.model.embed(
             strs_to_embed,
@@ -503,7 +494,7 @@ class GemmaEmbeddingModel(EmbeddingModel):
         )  # There are other functions, like encode_query. What to do about them?
         return embedding
 
-    def embed_batch(self, strs_to_embed: List[str]):
+    def embed_batch(self, strs_to_embed: list[str]):
         embeddings = self.model.encode_document(
             strs_to_embed
         )  # There are other functions, like encode_query. What to do about them?
@@ -522,11 +513,11 @@ class BaseSentenceTransformerModel(EmbeddingModel):
         embedding = self.model.encode([str_to_embed])
         return embedding
 
-    def embed_batch(self, strs_to_embed: List[str]) -> np.ndarray:
+    def embed_batch(self, strs_to_embed: list[str]) -> np.ndarray:
         embeddings = self.model.encode(strs_to_embed)
         return embeddings
 
-    def embed_batch_as_smaller_pieces(self, strs_to_embed: List[str]) -> np.ndarray:
+    def embed_batch_as_smaller_pieces(self, strs_to_embed: list[str]) -> np.ndarray:
         mini_bs = 4
         if (
             len(strs_to_embed) > mini_bs
@@ -562,7 +553,7 @@ class NomicAIEmbeddingModel(BaseSentenceTransformerModel):
             name=name, base_name=base_name, device=device, model_kwargs=model_kwargs
         )
 
-    def embed_batch(self, strs_to_embed: List[str]) -> np.ndarray:
+    def embed_batch(self, strs_to_embed: list[str]) -> np.ndarray:
         if isinstance(strs_to_embed, str):
             raise TypeError("embed_batch must take a list of strs")
         return self.embed_batch_as_smaller_pieces(strs_to_embed=strs_to_embed)
@@ -616,16 +607,30 @@ MODEL_SIZE_MAP = {
     "BinSeek-Embedding": 0.3,
 }
 
-for entry in Path(Path(THIS_FILES_PARENT_DIRECTORY) / "models").iterdir():
-    if entry.is_dir():
+
+def discover_custom_models() -> None:
+    """Register any fine-tuned checkpoints found under the checkpoints directory.
+
+    Safe to call on a fresh clone: if the checkpoints directory does not exist
+    (or contains no model subdirectories) this is a no-op. This was previously
+    executed unconditionally at import time and crashed with FileNotFoundError
+    on a clean checkout.
+    """
+    if not CHECKPOINTS_DIR.exists():
+        return
+    for entry in CHECKPOINTS_DIR.iterdir():
+        if not entry.is_dir():
+            continue
         if "Qwen" in entry.name:
-            MODEL_CLASS_MAP.update({entry.name: OnlineCustomEmbeddingModel})
-            MODEL_SIZE_MAP.update(
-                {entry.name: 0.6}
-            )  # Hardcoded for now, needs adjusting if new custom model is introduced.
+            MODEL_CLASS_MAP[entry.name] = OnlineCustomEmbeddingModel
+            # Hardcoded for now; adjust if a non-0.6B custom model is introduced.
+            MODEL_SIZE_MAP[entry.name] = 0.6
         else:
             raise ValueError(
-                "Please update MODEL_CLASS_MAP to reflect any new model types that are not Qwen3-Embedding-0.6B"
+                f"Unrecognized custom checkpoint '{entry.name}': update "
+                "MODEL_CLASS_MAP to handle model types other than Qwen3-Embedding."
             )
+    assert set(MODEL_CLASS_MAP.keys()) == set(MODEL_SIZE_MAP.keys())
 
-assert set(MODEL_CLASS_MAP.keys()) == set(MODEL_SIZE_MAP.keys())
+
+discover_custom_models()

@@ -1,49 +1,39 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
+import argparse
+
 from datasets import load_from_disk
+from sentence_transformers import (
+    SentenceTransformer,
+    SentenceTransformerTrainer,
+    SentenceTransformerTrainingArguments,
+)
 from sentence_transformers.losses import (
     CachedMultipleNegativesRankingLoss,
 )
 from sentence_transformers.training_args import BatchSamplers
-from sentence_transformers import (
-    SentenceTransformerTrainingArguments,
-    SentenceTransformerTrainer,
-    SentenceTransformer,
-)
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, set_seed
 
-
-import os
-from pathlib import Path
-import argparse
+from sfce.paths import CHECKPOINTS_DIR
 
 
 def arg_parse():
     parser = argparse.ArgumentParser(
-        description="Conduct Assemblage Training.",
-        epilog="",
+        description="Conduct Assemblage training.",
     )
 
     parser.add_argument(
         "--data_dir_path",
-        default=f"{os.path.expanduser('~')}/semantic-free-code-embedding/data/decompiled_summaries_TRAIN",
+        required=True,
         type=str,
-        help="The path to the directory to process.",
+        help="Path to the Assemblage training dataset (a Hugging Face dataset saved with save_to_disk).",
+    )
+
+    parser.add_argument(
+        "--seed",
+        default=42,
+        type=int,
+        help="Random seed for reproducible data splitting and training.",
     )
 
     parser.add_argument(
@@ -77,7 +67,13 @@ def train(
     model_short_name: str,
     grad_accum_steps: int,
     batch_size: int,
+    seed: int = 42,
 ):
+
+    # Seed everything for reproducible data splits and training. Note that GPU /
+    # cuDNN / DeepSpeed kernels remain a source of irreducible nondeterminism, so
+    # exact bit-for-bit reproduction of result tables is not guaranteed.
+    set_seed(seed)
 
     # model init
     model = SentenceTransformer(model_name)
@@ -94,10 +90,12 @@ def train(
     )  # keeping the context limited for this example model
 
     # Used to truncate inputs into desired lengths.
-    encode_decode = lambda x: tokenizer.decode(
-        tokenizer.encode(x, truncation=True, max_length=half_length),
-        skip_special_tokens=True,
-    )
+    def encode_decode(x):
+        return tokenizer.decode(
+            tokenizer.encode(x, truncation=True, max_length=half_length),
+            skip_special_tokens=True,
+        )
+
     ds = ds.map(
         lambda x: {
             "anchor": encode_decode(x["anchor"]),
@@ -106,7 +104,7 @@ def train(
     )  # not totally convinced the data is getting truncated, so we do it manually.
 
     ds = ds.select_columns(["anchor", "positive"])
-    split_ds = ds.train_test_split(test_size=0.01)
+    split_ds = ds.train_test_split(test_size=0.01, seed=seed)
     train_ds, val_ds = split_ds["train"], split_ds["test"]
 
     mini_batch_size = 1  # In nearly every case, this should always be 1
@@ -116,9 +114,7 @@ def train(
     loss = CachedMultipleNegativesRankingLoss(model, mini_batch_size=mini_batch_size)
 
     run_name = f"mitRE_embed_{model_name.replace('/', '_')}_test"
-    out_path = Path(__file__).resolve().parent.parent / Path(
-        f"models/mitRE_embed_{model_short_name}/{run_name}"
-    )
+    out_path = CHECKPOINTS_DIR / f"mitRE_embed_{model_short_name}" / run_name
 
     args = SentenceTransformerTrainingArguments(
         dataloader_drop_last=True,
@@ -145,6 +141,8 @@ def train(
         report_to="tensorboard",
         skip_memory_metrics=False,
         save_safetensors=True,
+        seed=seed,
+        data_seed=seed,
     )
 
     trainer = SentenceTransformerTrainer(
@@ -157,7 +155,7 @@ def train(
     trainer.train()
 
 
-if __name__ == "__main__":
+def main():
     args = arg_parse()
     train(
         ds_path=args.data_dir_path,
@@ -165,4 +163,9 @@ if __name__ == "__main__":
         model_short_name=args.model_short_name,
         grad_accum_steps=args.grad_accum_steps,
         batch_size=args.batch_size,
+        seed=args.seed,
     )
+
+
+if __name__ == "__main__":
+    main()
