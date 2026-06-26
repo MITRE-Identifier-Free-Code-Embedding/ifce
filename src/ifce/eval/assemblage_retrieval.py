@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The MITRE Corporation
+import logging
 import os
 import pickle
 from pathlib import Path
@@ -19,6 +20,9 @@ from ifce.visualization.assemblage_plots import (
 )
 
 K_FOR_RECALLS = [1, 3, 5, 10]
+
+
+logger = logging.getLogger(__name__)
 
 
 def recall_at_k(rank_series: np.ndarray, k: int):
@@ -755,5 +759,5 @@ def analyze_sims(
         with open("all_ranks.pkl", "wb") as file:
             pickle.dump(all_ranks, file)
     except Exception as e:
-        print(e)
+        logger.info(e)
     gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names)

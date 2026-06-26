@@ -6,6 +6,7 @@ vllm and openai are imported lazily inside the methods that use them so this
 module imports without those GPU-only / optional dependencies installed.
 """
 
+import logging
 import os
 import signal
 import subprocess
@@ -18,6 +19,8 @@ import requests
 from ifce.paths import CHECKPOINTS_DIR
 
 from .base import EmbeddingModel
+
+logger = logging.getLogger(__name__)
 
 _TASK_DESCRIPTION = (
     "Given a source code function or a decompiled code, find the respective "
@@ -285,7 +288,7 @@ class OnlineCustomEmbeddingModel(OnlineQwen3EmbeddingModel):
         ]
         if self.quantization:
             cmd.extend(["-q", self.quantization])
-            print(f"Quantizing as {self.quantization}")
+            logger.info(f"Quantizing as {self.quantization}")
         if max_model_len is not None:
             cmd += ["--max-model-len", str(max_model_len)]
         for key, value in kwargs.items():

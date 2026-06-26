@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The MITRE Corporation
 import itertools
+import logging
 import os
 import pickle
 import re
@@ -29,6 +30,9 @@ from ifce.visualization.signsrch_plots import (
 memory = joblib.Memory(
     location=str(Path(__file__).resolve().parent / Path("joblib_cache"))
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def parse_signsrch(filepath: str) -> dict[str, str]:
@@ -388,7 +392,7 @@ def _get_embeddings_cached(
             local_model = build_model(model_name, device)
             break
         except Exception as e:
-            print(f"retrying... attempt {i}")
+            logger.info(f"retrying... attempt {i}")
             if i == max_attempts - 1:
                 raise ValueError(
                     f"Model {model_name} cannot be loaded with exception: {e}"
@@ -674,4 +678,4 @@ def run_signsrch_exps(
 
     gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path)
 
-    print("Completed Signsrch Experiments")
+    logger.info("Completed Signsrch Experiments")

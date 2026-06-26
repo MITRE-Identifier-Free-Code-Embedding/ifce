@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The MITRE Corporation
 import gc
+import logging
 import os
 from pathlib import Path
 from time import sleep
@@ -24,6 +25,9 @@ Note "id'd" data refers to data that has been id'd by
 2. source function (starting from 0 to ds length) and 
 3. decompilation function (starting from ds length to ds length * 2)
 """
+
+
+logger = logging.getLogger(__name__)
 
 
 def _stack_embeddings(emb_list):
@@ -195,7 +199,7 @@ def create_embeddings(
     new_ds_directory = f"{data_directory}_embedded"
     cached_ds = None
     if not overwrite and Path(new_ds_directory).exists():
-        print(f"Loading cached embedded dataset from {new_ds_directory}")
+        logger.info(f"Loading cached embedded dataset from {new_ds_directory}")
         cached_ds = load_from_disk(new_ds_directory)
 
     local_model = None
@@ -210,13 +214,15 @@ def create_embeddings(
             and embedding_col_decomp in cached_ds.column_names
             and embedding_col_source in cached_ds.column_names
         ):
-            print(f"Cache hit for {model} — loading embeddings from {new_ds_directory}")
+            logger.info(
+                f"Cache hit for {model} — loading embeddings from {new_ds_directory}"
+            )
             ds = ds.add_column(embedding_col_decomp, cached_ds[embedding_col_decomp])
             ds = ds.add_column(embedding_col_source, cached_ds[embedding_col_source])
             continue  # Skip embedding computation entirely for this model
 
         # Cache miss — compute embeddings
-        print(f"No cache found for {model} — computing embeddings...")
+        logger.info(f"No cache found for {model} — computing embeddings...")
         sleep(5)
         local_model = build_model(model, device)
         sleep(5)
@@ -236,7 +242,7 @@ def create_embeddings(
         # saved dataset
         ds.save_to_disk(new_ds_directory, num_proc=16)
 
-        print(f"Composing dimensionality reduction plots for {model}")
+        logger.info(f"Composing dimensionality reduction plots for {model}")
         save_tsne_figures_from_embeddings(
             ds=ds,
             model_name=model,
@@ -249,5 +255,5 @@ def create_embeddings(
         cuda.empty_cache()
 
     ds.save_to_disk(new_ds_directory, num_proc=16)
-    print(f"Processed Embeddings at {new_ds_directory}")
+    logger.info(f"Processed Embeddings at {new_ds_directory}")
     return new_ds_directory

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The MITRE Corporation
+import logging
 import math
 import os
 
@@ -16,6 +17,8 @@ from sklearn.metrics import (
 from ifce.eval.ood_common import compute_knn_nonconformity, partner_index
 from ifce.paths import RESULTS_DIR
 from ifce.processing.find_distances import find_distances
+
+logger = logging.getLogger(__name__)
 
 
 def build_pair_based_splits_for_f1(
@@ -568,7 +571,7 @@ def get_stats_for_f1(
             )
             results_by_model[model] = res
             tr = res["test_results"]
-            print(
+            logger.info(
                 f"{model}: k*={res['best_k']}, tau*={res['best_threshold']:.8f}, "
                 f"F1_test={tr['F1_test']:.3f}, Prec={tr['precision_test']:.3f}, "
                 f"Rec={tr['recall_test']:.3f}"
@@ -587,7 +590,7 @@ def get_stats_for_f1(
         with open(latex_file_path, "w") as f:
             f.write(latex_table)
 
-    print("Calibrated OOD detection")
+    logger.info("Calibrated OOD detection")
 
 
 if __name__ == "__main__":

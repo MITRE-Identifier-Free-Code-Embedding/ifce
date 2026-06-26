@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The MITRE Corporation
+import logging
 import math
 
 import numpy as np
@@ -8,6 +9,8 @@ from scipy.stats import norm
 
 from ifce.eval.ood_common import compute_knn_nonconformity, partner_index
 from ifce.processing.find_distances import find_distances
+
+logger = logging.getLogger(__name__)
 
 
 def _conformal_threshold(
@@ -345,22 +348,24 @@ def main(
             ood_val_frac=ood_val_frac,
             random_state=42,
         )
-        print(f"Model: {model}")
-        print("Split sizes:", results["split_sizes"])
-        print("Best k:", results["best_k"])
-        print("Validation TPR per k:")
+        logger.info(f"Model: {model}")
+        logger.info(f"Split sizes: {results['split_sizes']}")
+        logger.info(f"Best k: {results['best_k']}")
+        logger.info("Validation TPR per k:")
         for k in sorted(k_list):
             vr = results["val_results"][k]
-            print(
+            logger.info(
                 f"  k={k}: TPR_OOD_val={vr['tpr_ood_val']:.3f}, num_OOD_val={vr['num_ood_val']}"
             )
         tr = results["test_results"]
-        print(f"Test OOD detection probability P(detect|OOD)={tr['tpr_ood_test']:.3f}")
-        print(f"95% CI (Wilson): {tr['tpr_ci_95']}")
-        print(
+        logger.info(
+            f"Test OOD detection probability P(detect|OOD)={tr['tpr_ood_test']:.3f}"
+        )
+        logger.info(f"95% CI (Wilson): {tr['tpr_ci_95']}")
+        logger.info(
             f"Empirical ID FPR on ID_test={tr['empirical_fpr_id_test']:.3f} over {tr['num_id_test']} points"
         )
-        print(f"Chosen threshold tau={tr['threshold']:.4f}")
+        logger.info(f"Chosen threshold tau={tr['threshold']:.4f}")
 
 
 if __name__ == "__main__":

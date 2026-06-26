@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The MITRE Corporation
+import logging
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -12,6 +14,8 @@ from tqdm import tqdm
 from ifce.config import yaml_safe_load
 from ifce.device import get_device
 from ifce.paths import DATA_DIR
+
+logger = logging.getLogger(__name__)
 
 
 def cosine_matrix_calculation(full_embeddings, device: str, split_size=1024):
@@ -134,7 +138,7 @@ def find_distances(
             ):  # TODO modify other to support non cosine distances
                 similarity_files.append(new_file_path)
 
-    print(
+    logger.info(
         f"Processed cosine distances at {dict(zip(model_list, similarity_files, strict=False))}"
     )
     return model_list, similarity_files
