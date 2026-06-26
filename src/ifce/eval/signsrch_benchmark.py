@@ -431,43 +431,6 @@ def get_AP(relevant, ranked):
     return AP
 
 
-def get_group_MAPs(
-    df_no_algo_classes: pd.DataFrame,
-    sigs: dict[str, set],
-    reversed_sigs: dict[str, str],
-    procs: int,
-) -> dict[str, list[float]]:
-    """
-    For each algorithm group, compute the MAP across all its constants.
-    Returns a dict: group_name -> list[AP-per-constant], one entry per group.
-    The caller averages to get MAP, but the list is kept for per-group stats.
-    """
-
-    def find_ranked(x, df_no_algo_classes=df_no_algo_classes):
-        return (
-            df_no_algo_classes.loc[x].drop(index=x).sort_values(ascending=False).index
-        )
-
-    all_constants = list(df_no_algo_classes.index)
-    all_ranked = Parallel(n_jobs=procs, verbose=2)(
-        delayed(find_ranked)(c) for c in all_constants
-    )
-
-    # Group APs by algorithm name
-    group_aps: dict[str, list[float]] = {name: [] for name in sigs}
-    for _, (constant, ranked) in enumerate(
-        tqdm(zip(all_constants, all_ranked, strict=False), desc="Finding group APs")
-    ):
-        algo_names = reversed_sigs[constant]
-        for algo_name in algo_names:
-            relevant = sigs[algo_name]
-            relevant.remove(constant)
-            ap = get_AP(relevant=relevant, ranked=list(ranked))
-            group_aps[algo_name].append(ap)
-
-    return group_aps  # group -> [AP_c1, AP_c2, ...]
-
-
 def get_AP_from_indices(relevant_idx: np.ndarray, ranked_idx: np.ndarray) -> float:
     if relevant_idx.size == 0:
         return 0.0

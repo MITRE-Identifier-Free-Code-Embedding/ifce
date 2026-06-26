@@ -170,31 +170,6 @@ def plot_wilcoxon_pvalue_heatmap(
     return fig, ax
 
 
-def plot_overlaid_histograms(ap_dict, bins=20, density=False, alpha=0.4):
-    """
-    Plot overlaid histograms for each model on the same axes.
-    """
-    plt.figure(figsize=(16, 10))
-    for model, ap_list in ap_dict.items():
-        plt.hist(
-            ap_list,
-            bins=bins,
-            density=density,
-            alpha=alpha,
-            label=model,
-            edgecolor="black",
-            linewidth=0.5,
-        )
-    plt.xlabel("Average Precision")
-    plt.ylabel("Density" if density else "Count")
-    plt.title("Overlaid AP Distributions by Model")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    plt.savefig("overlaid_histograms.png")
-    plt.close()
-
-
 def plot_overlaid_kde(ap_dict, title: str, fig_path: str | Path, bw_method="scott"):
     """
     Optional: plot overlaid kernel density estimates for smoother distribution comparison.

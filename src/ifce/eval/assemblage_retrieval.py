@@ -249,30 +249,6 @@ def _get_metric_sem_from_ranks(ranks, k_for_recalls):
 
 
 # unused
-def _get_metric_sds_from_ranks(ranks, k_for_recalls):
-    """
-    Compute per-metric standard errors from per-query metric values induced by ranks.
-
-    Returns:
-        dict mapping metric name -> standard error of the mean for that metric
-    """
-    metrics_per_query = compute_query_metrics_from_ranks(ranks, k_for_recalls)
-    sds = {}
-
-    for metric_name, values in metrics_per_query.items():
-        values = np.asarray(values, dtype=float)
-        n = values.size
-        if n == 0:
-            sd = np.nan
-        elif n == 1:
-            sd = 0.0
-        else:
-            sd = values.std(ddof=1)
-        sds[metric_name] = sd
-
-    return sds
-
-
 def _attach_metric_se_columns(df_group, candidate_group, all_ranks, k_for_recalls):
     """
     Add <metric>_SE columns to a candidate-group dataframe, one row per model.

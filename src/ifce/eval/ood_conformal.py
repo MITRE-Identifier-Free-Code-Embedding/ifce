@@ -5,47 +5,8 @@ import math
 import numpy as np
 import pandas as pd
 
+from ifce.eval.ood_common import compute_knn_nonconformity, partner_index
 from ifce.processing.find_distances import find_distances
-
-
-def partner_index(i: int, num_ids: int) -> int:
-    """
-    Given id i in [0, num_ids), return the id of its opposite representation,
-    using the rule:
-        if there are 100 total pairs -> 200 ids,
-        pairs are (0,100), (1,101), (2,102), ...
-    """
-    half = num_ids // 2
-    if i < half:
-        return i + half
-    else:
-        return i - half
-
-
-def _compute_knn_nonconformity(
-    cosine_matrix: np.ndarray,
-    idx_points: np.ndarray,
-    idx_reference: np.ndarray,
-    k: int,
-) -> np.ndarray:
-    """
-    Nonconformity score for each point i in idx_points:
-      alpha_i = average distance to its k nearest neighbors among idx_reference.
-    Distance is 1 - cosine similarity.
-    """
-    if len(idx_reference) < k:
-        raise ValueError(
-            f"k={k} is larger than number of reference points={len(idx_reference)}"
-        )
-
-    # Submatrix of cosine sims between points and reference set
-    sims = cosine_matrix[np.ix_(idx_points, idx_reference)]
-    dists = 1.0 - sims  # convert cosine similarity to distance
-
-    # kth-order statistic via partition: first k entries are the k smallest distances
-    knn_dists = np.partition(dists, kth=k - 1, axis=1)[:, :k]
-    scores = knn_dists.mean(axis=1)
-    return scores
 
 
 def _conformal_threshold(
@@ -255,7 +216,7 @@ def knn_conformal_ood_with_pairs(
     # Hyperparameter search over k
     for k in sorted(k_list):
         # Nonconformity scores for calibration ID points
-        calib_scores = _compute_knn_nonconformity(
+        calib_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=ID_calib,
             idx_reference=ID_train,
@@ -264,7 +225,7 @@ def knn_conformal_ood_with_pairs(
         tau = _conformal_threshold(calib_scores, epsilon=epsilon)
 
         # Nonconformity scores for OOD validation points
-        ood_val_scores = _compute_knn_nonconformity(
+        ood_val_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=OOD_val,
             idx_reference=ID_train,
@@ -284,7 +245,7 @@ def knn_conformal_ood_with_pairs(
     best_k = max(k_sorted, key=lambda kk: val_results[kk]["tpr_ood_val"])
 
     # With best_k, recompute calibration scores and threshold
-    best_calib_scores = _compute_knn_nonconformity(
+    best_calib_scores = compute_knn_nonconformity(
         cosine_matrix=cosine_matrix,
         idx_points=ID_calib,
         idx_reference=ID_train,
@@ -293,7 +254,7 @@ def knn_conformal_ood_with_pairs(
     best_tau = _conformal_threshold(best_calib_scores, epsilon=epsilon)
 
     # Evaluate on OOD test
-    ood_test_scores = _compute_knn_nonconformity(
+    ood_test_scores = compute_knn_nonconformity(
         cosine_matrix=cosine_matrix,
         idx_points=OOD_test,
         idx_reference=ID_train,
@@ -313,7 +274,7 @@ def knn_conformal_ood_with_pairs(
 
     # Empirical FPR on held-out ID test set (optional)
     if len(ID_test) > 0:
-        id_test_scores = _compute_knn_nonconformity(
+        id_test_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=ID_test,
             idx_reference=ID_train,

@@ -256,20 +256,3 @@ def create_embeddings(
     ds.save_to_disk(new_ds_directory, num_proc=16)
     print(f"Processed Embeddings at {new_ds_directory}")
     return new_ds_directory
-
-
-def just_embeddings(
-    data_directory,
-    model_config_path,
-    out_path: str = str(RESULTS_DIR),
-):
-    yaml_config = yaml_safe_load(model_config_path)
-    new_ds_directory = f"{data_directory}_embedded"
-    cached_ds = load_from_disk(new_ds_directory)
-
-    for model in yaml_config["models"]:
-        save_tsne_figures_from_embeddings(
-            ds=cached_ds,
-            model_name=model,
-            out_path=out_path,
-        )

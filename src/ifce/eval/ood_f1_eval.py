@@ -13,48 +13,9 @@ from sklearn.metrics import (
     roc_curve,
 )
 
+from ifce.eval.ood_common import compute_knn_nonconformity, partner_index
 from ifce.paths import RESULTS_DIR
 from ifce.processing.find_distances import find_distances
-
-
-def partner_index(i: int, num_ids: int) -> int:
-    """
-    Given id i in [0, num_ids), return the id of its opposite representation,
-    using the rule:
-        if there are 100 total pairs -> 200 ids,
-        pairs are (0,100), (1,101), (2,102), ...
-    """
-    half = num_ids // 2
-    if i < half:
-        return i + half
-    else:
-        return i - half
-
-
-def _compute_knn_nonconformity(
-    cosine_matrix: np.ndarray,
-    idx_points: np.ndarray,
-    idx_reference: np.ndarray,
-    k: int,
-) -> np.ndarray:
-    """
-    Nonconformity score for each point i in idx_points:
-      alpha_i = average distance to its k nearest neighbors among idx_reference.
-    Distance is 1 - cosine similarity.
-    """
-    if len(idx_reference) < k:
-        raise ValueError(
-            f"k={k} is larger than number of reference points={len(idx_reference)}"
-        )
-
-    # Submatrix of cosine sims between points and reference set
-    sims = cosine_matrix[np.ix_(idx_points, idx_reference)]
-    dists = 1.0 - sims  # convert cosine similarity to distance
-
-    # kth-order statistic via partition: first k entries are the k smallest distances
-    knn_dists = np.partition(dists, kth=k - 1, axis=1)[:, :k]
-    scores = knn_dists.mean(axis=1)
-    return scores
 
 
 def build_pair_based_splits_for_f1(
@@ -285,13 +246,13 @@ def knn_ood_f1_with_pairs(
 
     # For each k, compute scores on validation splits and optimize threshold
     for k in sorted(k_list):
-        id_val_scores = _compute_knn_nonconformity(
+        id_val_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=ID_val,
             idx_reference=ID_train,
             k=k,
         )
-        ood_val_scores = _compute_knn_nonconformity(
+        ood_val_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=OOD_val,
             idx_reference=ID_train,
@@ -340,7 +301,7 @@ def knn_ood_f1_with_pairs(
 
     # Evaluate best (k, threshold) on test
     if len(ID_test) > 0:
-        id_test_scores = _compute_knn_nonconformity(
+        id_test_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=ID_test,
             idx_reference=ID_train,
@@ -350,7 +311,7 @@ def knn_ood_f1_with_pairs(
         id_test_scores = np.array([], dtype=float)
 
     if len(OOD_test) > 0:
-        ood_test_scores = _compute_knn_nonconformity(
+        ood_test_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=OOD_test,
             idx_reference=ID_train,
