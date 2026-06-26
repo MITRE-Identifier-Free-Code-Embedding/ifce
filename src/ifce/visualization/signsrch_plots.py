@@ -187,7 +187,6 @@ def plot_overlaid_kde(ap_dict, title: str, fig_path: str | Path, bw_method="scot
     plt.title(title)
     plt.legend()
     plt.tight_layout()
-    plt.show()
     plt.savefig(fig_path)
     plt.close()
 
@@ -231,7 +230,6 @@ def plot_map_histograms(
     plt.suptitle(suptitle)
     plt.legend()
     plt.tight_layout()
-    plt.show()
     plt.savefig(f"{out_path}/sig_hist_{extension}.png")
 
 

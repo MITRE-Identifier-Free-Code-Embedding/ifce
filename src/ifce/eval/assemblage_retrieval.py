@@ -473,8 +473,8 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
         col_format = "ll" + "r" * (1 + 2 * len(k_for_recalls))
         caption = f"MRR, MRR@ k and Recall@ k for {candidate_group}."
         df_label = f"tab:metrics_{safe_group}"
-        # LaTeX table with caption mentioning the candidate group
-        smaller_df_group.to_latex(
+        # Full metrics table
+        df_group.to_latex(
             f"{out_path}/metrics_table_{safe_group}.tex",
             index=False,
             float_format="%.4f",
@@ -483,14 +483,14 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
             label=df_label,
         )
 
-        # LaTeX table with caption mentioning the candidate group
-        df_group.to_latex(
+        # Reduced ("smaller") metrics table
+        smaller_df_group.to_latex(
             f"{out_path}/metrics_table_{safe_group}_smaller.tex",
             index=False,
             float_format="%.4f",
             column_format=col_format,
-            caption=caption,
-            label=df_label,
+            caption=caption + " (reduced)",
+            label=df_label + "_smaller",
         )
 
         metrics_cols = [

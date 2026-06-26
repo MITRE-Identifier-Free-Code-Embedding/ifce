@@ -535,7 +535,7 @@ def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
             normality_results=normality,
             caption=f"Shapiro–Wilk normality tests for {map_or_ap} distributions, {exp_name}",
             label=f"tab:{map_or_ap.lower()}_normality",
-            file_path=out_path / Path(f"sig_normalit_{extension_name}.tex"),
+            file_path=out_path / Path(f"sig_normality_{extension_name}.tex"),
         )
         paired_results = paired_tests(AP_dict, alpha=alpha)  # if APs are aligned
         # pprint(paired_results)

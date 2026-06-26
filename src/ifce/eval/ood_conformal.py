@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 from ifce.eval.ood_common import compute_knn_nonconformity, partner_index
 from ifce.processing.find_distances import find_distances
@@ -35,14 +36,14 @@ def _wilson_interval(
     num_success: int,
     num_total: int,
     alpha: float = 0.05,
-) -> (float, float):
+) -> tuple[float, float]:
     """
     Wilson score confidence interval for a binomial proportion p.
     """
     if num_total == 0:
         return (0.0, 1.0)
-    # 1.96 ≈ z_{0.975} for 95% CI
-    z = 1.96 if abs(alpha - 0.05) < 1e-9 else 1.96
+    # Two-sided critical value z_{1 - alpha/2} (≈ 1.96 for the default 95% CI).
+    z = float(norm.ppf(1.0 - alpha / 2.0))
     phat = num_success / num_total
     denom = 1.0 + z**2 / num_total
     center = (phat + z**2 / (2.0 * num_total)) / denom

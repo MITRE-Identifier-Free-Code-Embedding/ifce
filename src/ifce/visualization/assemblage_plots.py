@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The MITRE Corporation
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -178,7 +179,7 @@ def log_histogram(
     )
 
     ax.set_yscale("log")
-    ax.yaxis.set_major_formatter(plt.LogFormatter(labelOnlyBase=False))
+    ax.yaxis.set_major_formatter(mticker.LogFormatter(labelOnlyBase=False))
 
     ax.set_title(title, fontsize=16, pad=15)
     plt.suptitle(suptitle, fontsize=10)
