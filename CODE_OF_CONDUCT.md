@@ -41,7 +41,7 @@ or harmful.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the project maintainers. <!-- TODO: add a maintainer contact email -->
+reported to the project maintainers at ewolos015@gmail.com.
 All complaints will be reviewed and investigated promptly and fairly.
 
 ## Attribution

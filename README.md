@@ -56,8 +56,10 @@ unzip signsrch.sig.zip
 mv signsrch.sig ./data
 ```
 
-Our variant of the Assemblage train/test dataset is a Hugging Face dataset saved
-with `save_to_disk`. <!-- TODO: publish the final Hugging Face URL and dataset license. -->
+Our train/test splits are derived from the
+[Assemblage dataset](https://assemblage-dataset.net/) and provided as a Hugging
+Face dataset saved with `save_to_disk`. The processed variant will be published
+to the Hugging Face Hub (link forthcoming).
 
 ## Training
 
@@ -138,11 +140,11 @@ If you use this software or its results, please cite the paper (see
 [CITATION.cff](CITATION.cff)):
 
 ```bibtex
-@inproceedings{ifce2026,
-  title     = {Identifier Free Code Embedding Models for Scalable Search},
-  author    = {The MITRE Corporation},
-  year      = {2026}
-  % TODO: authors, venue (NeurIPS 2026), and DOI / arXiv id
+@misc{ifce2026,
+  title  = {Identifier Free Code Embedding Models for Scalable Search},
+  author = {Wolos, Eric and Doyle, Michael},
+  year   = {2026},
+  note   = {Under review at NeurIPS 2026}
 }
 ```
 

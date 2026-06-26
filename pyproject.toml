@@ -10,8 +10,11 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
-authors = [{ name = "The MITRE Corporation" }]
-maintainers = [{ name = "The MITRE Corporation" }]
+authors = [{ name = "Eric Wolos" }, { name = "Michael Doyle" }]
+maintainers = [
+    { name = "Eric Wolos", email = "ewolos015@gmail.com" },
+    { name = "Michael Doyle" },
+]
 keywords = [
     "code-embedding",
     "contrastive-learning",
@@ -74,9 +77,9 @@ ifce-train = "ifce.cli.train:main"
 ifce-time = "ifce.cli.time_embeddings:cli_main"
 
 [project.urls]
-Homepage = "https://gitlab.mitre.org/ifce/identifier-free-code-embedding"
-Repository = "https://gitlab.mitre.org/ifce/identifier-free-code-embedding"
-Issues = "https://gitlab.mitre.org/ifce/identifier-free-code-embedding/issues"
+Homepage = "https://github.com/MITRE-Identifier-Free-Code-Embedding"
+Repository = "https://github.com/MITRE-Identifier-Free-Code-Embedding/identifier-free-code-embedding"
+Issues = "https://github.com/MITRE-Identifier-Free-Code-Embedding/identifier-free-code-embedding/issues"
 
 [dependency-groups]
 dev = [

@@ -7,14 +7,23 @@ abstract: >-
   identifiers, using a contrastive objective over source / decompiled pairs.
 type: software
 authors:
-  - name: "The MITRE Corporation"
-repository-code: "https://gitlab.mitre.org/ifce/identifier-free-code-embedding"
+  - given-names: Eric
+    family-names: Wolos
+  - given-names: Michael
+    family-names: Doyle
+    orcid: "https://orcid.org/0009-0002-0229-5693"
+repository-code: "https://github.com/MITRE-Identifier-Free-Code-Embedding/identifier-free-code-embedding"
+url: "https://github.com/MITRE-Identifier-Free-Code-Embedding"
 license: Apache-2.0
 version: "0.1.0"
 preferred-citation:
-  type: conference-paper
+  type: unpublished
   title: "Identifier Free Code Embedding Models for Scalable Search"
   year: 2026
+  notes: "Under review at NeurIPS 2026."
   authors:
-    - name: "The MITRE Corporation"
-  # TODO: fill in author list, venue (NeurIPS 2026), and DOI / arXiv id once available.
+    - given-names: Eric
+      family-names: Wolos
+    - given-names: Michael
+      family-names: Doyle
+      orcid: "https://orcid.org/0009-0002-0229-5693"
