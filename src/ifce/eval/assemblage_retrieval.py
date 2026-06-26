@@ -11,8 +11,8 @@ import seaborn as sns
 from datasets import load_from_disk
 from joblib import Parallel, delayed
 
-from sfce.modeling.models import MODEL_SIZE_MAP
-from sfce.visualization.assemblage_plots import (
+from ifce.modeling.models import MODEL_SIZE_MAP
+from ifce.visualization.assemblage_plots import (
     log_histogram,
     scatter_with_fit,
     trimmed_quantile_boxplot,

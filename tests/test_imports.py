@@ -14,29 +14,29 @@ import importlib
 import pytest
 
 MODULES = [
-    "sfce",
-    "sfce.paths",
-    "sfce.config",
-    "sfce.device",
-    "sfce.modeling",
-    "sfce.modeling.models",
-    "sfce.modeling.train",
-    "sfce.processing",
-    "sfce.processing.add_embeddings",
-    "sfce.processing.find_distances",
-    "sfce.eval",
-    "sfce.eval.assemblage_retrieval",
-    "sfce.eval.signsrch_benchmark",
-    "sfce.eval.ood_conformal",
-    "sfce.eval.ood_f1_eval",
-    "sfce.visualization",
-    "sfce.visualization.assemblage_plots",
-    "sfce.visualization.signsrch_plots",
-    "sfce.cli",
-    "sfce.cli.conduct_experiment",
-    "sfce.cli.time_embeddings",
-    "sfce.cli.regenerate_figures",
-    "sfce.cli.train",
+    "ifce",
+    "ifce.paths",
+    "ifce.config",
+    "ifce.device",
+    "ifce.modeling",
+    "ifce.modeling.models",
+    "ifce.modeling.train",
+    "ifce.processing",
+    "ifce.processing.add_embeddings",
+    "ifce.processing.find_distances",
+    "ifce.eval",
+    "ifce.eval.assemblage_retrieval",
+    "ifce.eval.signsrch_benchmark",
+    "ifce.eval.ood_conformal",
+    "ifce.eval.ood_f1_eval",
+    "ifce.visualization",
+    "ifce.visualization.assemblage_plots",
+    "ifce.visualization.signsrch_plots",
+    "ifce.cli",
+    "ifce.cli.conduct_experiment",
+    "ifce.cli.time_embeddings",
+    "ifce.cli.regenerate_figures",
+    "ifce.cli.train",
 ]
 
 
@@ -46,12 +46,12 @@ def test_module_imports(module):
 
 
 def test_version():
-    import sfce
+    import ifce
 
-    assert isinstance(sfce.__version__, str)
+    assert isinstance(ifce.__version__, str)
 
 
 def test_model_registry_is_consistent():
-    from sfce.modeling.models import MODEL_CLASS_MAP, MODEL_SIZE_MAP
+    from ifce.modeling.models import MODEL_CLASS_MAP, MODEL_SIZE_MAP
 
     assert set(MODEL_CLASS_MAP) == set(MODEL_SIZE_MAP)

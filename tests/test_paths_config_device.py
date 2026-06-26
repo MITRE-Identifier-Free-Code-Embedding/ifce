@@ -6,7 +6,7 @@ import pytest
 
 
 def test_project_paths_are_under_project_root():
-    from sfce import paths
+    from ifce import paths
 
     assert paths.CONFIG_DIR == paths.PROJECT_ROOT / "config"
     assert paths.CHECKPOINTS_DIR == paths.OUTPUTS_DIR / "checkpoints"
@@ -15,25 +15,25 @@ def test_project_paths_are_under_project_root():
 
 
 def test_path_overrides_via_env(monkeypatch, tmp_path):
-    monkeypatch.setenv("SFCE_OUTPUTS_DIR", str(tmp_path / "out"))
+    monkeypatch.setenv("IFCE_OUTPUTS_DIR", str(tmp_path / "out"))
     import importlib
 
-    from sfce import paths
+    from ifce import paths
 
     importlib.reload(paths)
     try:
         assert paths.OUTPUTS_DIR == tmp_path / "out"
         assert paths.CHECKPOINTS_DIR == tmp_path / "out" / "checkpoints"
     finally:
-        monkeypatch.delenv("SFCE_OUTPUTS_DIR", raising=False)
+        monkeypatch.delenv("IFCE_OUTPUTS_DIR", raising=False)
         importlib.reload(paths)
 
 
 def test_ensure_output_dirs_creates_dirs(monkeypatch, tmp_path):
     import importlib
 
-    monkeypatch.setenv("SFCE_OUTPUTS_DIR", str(tmp_path / "out"))
-    from sfce import paths
+    monkeypatch.setenv("IFCE_OUTPUTS_DIR", str(tmp_path / "out"))
+    from ifce import paths
 
     importlib.reload(paths)
     try:
@@ -42,12 +42,12 @@ def test_ensure_output_dirs_creates_dirs(monkeypatch, tmp_path):
         assert (tmp_path / "out" / "results").is_dir()
         assert (tmp_path / "out" / "distances").is_dir()
     finally:
-        monkeypatch.delenv("SFCE_OUTPUTS_DIR", raising=False)
+        monkeypatch.delenv("IFCE_OUTPUTS_DIR", raising=False)
         importlib.reload(paths)
 
 
 def test_yaml_safe_load(tmp_path):
-    from sfce.config import yaml_safe_load
+    from ifce.config import yaml_safe_load
 
     cfg = tmp_path / "c.yaml"
     cfg.write_text("models: [a, b]\n")
@@ -56,7 +56,7 @@ def test_yaml_safe_load(tmp_path):
 
 
 def test_get_device_returns_valid_string():
-    from sfce.device import get_device
+    from ifce.device import get_device
 
     assert get_device() in {"cuda", "mps", "cpu"}
     assert get_device(prefer="cpu") == "cpu"
@@ -64,8 +64,8 @@ def test_get_device_returns_valid_string():
 
 @pytest.mark.parametrize("config_name", ["experiment_config.yaml", "train_config.yaml"])
 def test_shipped_configs_parse(config_name):
-    from sfce import paths
-    from sfce.config import yaml_safe_load
+    from ifce import paths
+    from ifce.config import yaml_safe_load
 
     config_file = paths.CONFIG_DIR / config_name
     if not config_file.exists():

@@ -2,10 +2,10 @@
 # Copyright 2026 The MITRE Corporation
 """Convenience entry point: run the full evaluation pipeline.
 
-Equivalent to the ``sfce-experiment`` console script installed with the package.
+Equivalent to the ``ifce-experiment`` console script installed with the package.
 """
 
-from sfce.cli.conduct_experiment import conduct_experiment
+from ifce.cli.conduct_experiment import conduct_experiment
 
 
 def main():

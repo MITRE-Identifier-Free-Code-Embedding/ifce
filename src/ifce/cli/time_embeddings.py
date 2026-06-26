@@ -13,10 +13,10 @@ import seaborn as sns
 from datasets import load_from_disk
 from tqdm import tqdm
 
-from sfce.config import yaml_safe_load
-from sfce.device import get_device
-from sfce.modeling.models import MODEL_CLASS_MAP
-from sfce.paths import DEFAULT_TIME_CONFIG, RESULTS_DIR
+from ifce.config import yaml_safe_load
+from ifce.device import get_device
+from ifce.modeling.models import MODEL_CLASS_MAP
+from ifce.paths import DEFAULT_TIME_CONFIG, RESULTS_DIR
 
 TARGET_EMBED_COUNT = 10_000
 

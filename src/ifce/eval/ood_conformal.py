@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from sfce.processing.find_distances import find_distances
+from ifce.processing.find_distances import find_distances
 
 
 def partner_index(i: int, num_ids: int) -> int:

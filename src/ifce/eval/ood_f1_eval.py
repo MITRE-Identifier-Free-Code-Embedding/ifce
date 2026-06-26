@@ -13,8 +13,8 @@ from sklearn.metrics import (
     roc_curve,
 )
 
-from sfce.paths import RESULTS_DIR
-from sfce.processing.find_distances import find_distances
+from ifce.paths import RESULTS_DIR
+from ifce.processing.find_distances import find_distances
 
 
 def partner_index(i: int, num_ids: int) -> int:

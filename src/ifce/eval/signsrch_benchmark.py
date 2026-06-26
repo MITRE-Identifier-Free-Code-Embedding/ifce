@@ -15,10 +15,10 @@ from joblib import Parallel, delayed
 from scipy import stats
 from tqdm import tqdm
 
-from sfce.config import yaml_safe_load
-from sfce.modeling.models import MODEL_CLASS_MAP
-from sfce.processing.find_distances import cosine_matrix_calculation
-from sfce.visualization.signsrch_plots import (
+from ifce.config import yaml_safe_load
+from ifce.modeling.models import MODEL_CLASS_MAP
+from ifce.processing.find_distances import cosine_matrix_calculation
+from ifce.visualization.signsrch_plots import (
     plot_group_map_bars,
     plot_map_histograms,
     plot_model_comparison_bars,

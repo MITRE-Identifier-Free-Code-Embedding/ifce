@@ -14,7 +14,7 @@ from sentence_transformers.losses import (
 from sentence_transformers.training_args import BatchSamplers
 from transformers import AutoTokenizer, set_seed
 
-from sfce.paths import CHECKPOINTS_DIR
+from ifce.paths import CHECKPOINTS_DIR
 
 
 def arg_parse():

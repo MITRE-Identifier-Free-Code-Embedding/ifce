@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software or its results, please cite the paper below."
-title: "Semantic-Free Code Embedding (SFCE)"
+title: "Identifier-Free Code Embedding (IFCE)"
 abstract: >-
   Code for training and evaluating identifier-free code-embedding models that
   locate functions in embedding space by what they do rather than by their
@@ -8,7 +8,7 @@ abstract: >-
 type: software
 authors:
   - name: "The MITRE Corporation"
-repository-code: "https://github.com/mitre/semantic-free-code-embedding"
+repository-code: "https://gitlab.mitre.org/ifce/identifier-free-code-embedding"
 license: Apache-2.0
 version: "0.1.0"
 preferred-citation:

@@ -1,4 +1,4 @@
-# Semantic-Free Code Embedding (SFCE)
+# Identifier-Free Code Embedding (IFCE)
 
 Code accompanying the paper **"Identifier Free Code Embedding Models for Scalable
 Search."** It trains and evaluates code-embedding models that position their
@@ -14,7 +14,7 @@ Evaluation is performed through two retrieval benchmarks:
 - **Assemblage** — source ↔ decompilation association
 - **Signsrch** — algorithm-constant association
 
-The importable package is named `sfce`.
+The importable package is named `ifce`.
 
 ## Installation
 
@@ -71,7 +71,7 @@ uv run accelerate config
 Then train (requires the `train` extra):
 
 ```bash
-uv run accelerate launch -m sfce.modeling.train --data_dir_path $TRAIN_ASSEMBLAGE_PATH
+uv run accelerate launch -m ifce.modeling.train --data_dir_path $TRAIN_ASSEMBLAGE_PATH
 ```
 
 Training is seeded (`--seed`, default 42) for reproducibility; note that GPU /
@@ -82,7 +82,7 @@ auto-discovered during evaluation.
 ## Evaluation
 
 ```bash
-uv run sfce-experiment \
+uv run ifce-experiment \
     --data_dir_path $TEST_ASSEMBLAGE_PATH \
     --yaml_file_path config/experiment_config.yaml \
     --signsrch_path data/signsrch.sig
@@ -91,7 +91,7 @@ uv run sfce-experiment \
 Evaluation results (figures, LaTeX tables) populate `outputs/results/`;
 intermediate cosine-similarity matrices and embeddings are stored under
 `data/` and `outputs/distances/`. Figures can be re-rendered from saved pickles
-without rerunning the experiment via `uv run python -m sfce.cli.regenerate_figures`.
+without rerunning the experiment via `uv run python -m ifce.cli.regenerate_figures`.
 
 A generated results table looks similar to:
 
@@ -114,13 +114,13 @@ A generated results table looks similar to:
 ## Repository layout
 
 ```
-src/sfce/          importable package
-  cli/             runnable entry points (sfce-experiment, sfce-train, sfce-time, regenerate_figures)
+src/ifce/          importable package
+  cli/             runnable entry points (ifce-experiment, ifce-train, ifce-time, regenerate_figures)
   modeling/        embedding model wrappers + training
   processing/      embedding generation and distance-matrix computation
   eval/            Assemblage retrieval, Signsrch benchmark, OOD analyses
   visualization/   plotting
-  paths.py         canonical project directories (override via SFCE_* env vars)
+  paths.py         canonical project directories (override via IFCE_* env vars)
 config/            experiment / timing / training YAML configs
 data/              inputs (signsrch.sig); generated parquet/embeddings (gitignored)
 outputs/           generated artifacts: checkpoints/, results/, distances/ (gitignored)
@@ -138,7 +138,7 @@ If you use this software or its results, please cite the paper (see
 [CITATION.cff](CITATION.cff)):
 
 ```bibtex
-@inproceedings{sfce2026,
+@inproceedings{ifce2026,
   title     = {Identifier Free Code Embedding Models for Scalable Search},
   author    = {The MITRE Corporation},
   year      = {2026}

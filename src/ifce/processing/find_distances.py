@@ -9,9 +9,9 @@ from sklearn.metrics import pairwise_distances
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from sfce.config import yaml_safe_load
-from sfce.device import get_device
-from sfce.paths import DATA_DIR
+from ifce.config import yaml_safe_load
+from ifce.device import get_device
+from ifce.paths import DATA_DIR
 
 
 def cosine_matrix_calculation(full_embeddings, device: str, split_size=1024):

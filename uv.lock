@@ -1383,6 +1383,93 @@ wheels = [
 ]
 
 [[package]]
+name = "identifier-free-code-embedding"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "datasets" },
+    { name = "joblib" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
+    { name = "pandas", version = "3.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "requests" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+    { name = "seaborn" },
+    { name = "sentence-transformers" },
+    { name = "torch" },
+    { name = "tqdm" },
+    { name = "transformers" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "accelerate" },
+    { name = "bitsandbytes" },
+    { name = "deepspeed" },
+    { name = "flagembedding" },
+    { name = "openai" },
+    { name = "tensorboard" },
+    { name = "vllm" },
+]
+eval = [
+    { name = "flagembedding" },
+    { name = "openai" },
+]
+serve = [
+    { name = "vllm" },
+]
+train = [
+    { name = "accelerate" },
+    { name = "bitsandbytes" },
+    { name = "deepspeed" },
+    { name = "tensorboard" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "accelerate", marker = "extra == 'train'", specifier = ">=1.12.0" },
+    { name = "bitsandbytes", marker = "extra == 'train'", specifier = ">=0.49.2" },
+    { name = "datasets", specifier = ">=4.4.2" },
+    { name = "deepspeed", marker = "extra == 'train'", specifier = ">=0.18.4" },
+    { name = "flagembedding", marker = "extra == 'eval'", specifier = ">=1.3.5" },
+    { name = "identifier-free-code-embedding", extras = ["train", "serve", "eval"], marker = "extra == 'all'" },
+    { name = "joblib", specifier = ">=1.3" },
+    { name = "matplotlib", specifier = ">=3.8" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "openai", marker = "extra == 'eval'", specifier = ">=1.40" },
+    { name = "pandas", specifier = ">=2.1" },
+    { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "requests", specifier = ">=2.31" },
+    { name = "scikit-learn", specifier = ">=1.8.0" },
+    { name = "scipy", specifier = ">=1.11" },
+    { name = "seaborn", specifier = ">=0.13.2" },
+    { name = "sentence-transformers", specifier = ">=5.2.0" },
+    { name = "tensorboard", marker = "extra == 'train'", specifier = ">=2.20.0" },
+    { name = "torch", specifier = ">=2.9,<3" },
+    { name = "tqdm", specifier = ">=4.66" },
+    { name = "transformers", specifier = ">=4.57.3" },
+    { name = "vllm", marker = "extra == 'serve'", specifier = ">=0.13.0" },
+]
+provides-extras = ["train", "serve", "eval", "all"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0" },
+    { name = "ruff", specifier = ">=0.15.10" },
+]
+
+[[package]]
 name = "idna"
 version = "3.11"
 source = { registry = "https://pypi.org/simple" }
@@ -4070,93 +4157,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/86/59/a451d7420a77ab0b98f7affa3a1d78a313d2f7281a57afb1a34bae8ab412/seaborn-0.13.2.tar.gz", hash = "sha256:93e60a40988f4d65e9f4885df477e2fdaff6b73a9ded434c1ab356dd57eefff7", size = 1457696, upload-time = "2024-01-25T13:21:52.551Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/83/11/00d3c3dfc25ad54e731d91449895a79e4bf2384dc3ac01809010ba88f6d5/seaborn-0.13.2-py3-none-any.whl", hash = "sha256:636f8336facf092165e27924f223d3c62ca560b1f2bb5dff7ab7fad265361987", size = 294914, upload-time = "2024-01-25T13:21:49.598Z" },
-]
-
-[[package]]
-name = "semantic-free-code-embedding"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "datasets" },
-    { name = "joblib" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
-    { name = "pandas", version = "3.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "requests" },
-    { name = "scikit-learn" },
-    { name = "scipy" },
-    { name = "seaborn" },
-    { name = "sentence-transformers" },
-    { name = "torch" },
-    { name = "tqdm" },
-    { name = "transformers" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "accelerate" },
-    { name = "bitsandbytes" },
-    { name = "deepspeed" },
-    { name = "flagembedding" },
-    { name = "openai" },
-    { name = "tensorboard" },
-    { name = "vllm" },
-]
-eval = [
-    { name = "flagembedding" },
-    { name = "openai" },
-]
-serve = [
-    { name = "vllm" },
-]
-train = [
-    { name = "accelerate" },
-    { name = "bitsandbytes" },
-    { name = "deepspeed" },
-    { name = "tensorboard" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "accelerate", marker = "extra == 'train'", specifier = ">=1.12.0" },
-    { name = "bitsandbytes", marker = "extra == 'train'", specifier = ">=0.49.2" },
-    { name = "datasets", specifier = ">=4.4.2" },
-    { name = "deepspeed", marker = "extra == 'train'", specifier = ">=0.18.4" },
-    { name = "flagembedding", marker = "extra == 'eval'", specifier = ">=1.3.5" },
-    { name = "joblib", specifier = ">=1.3" },
-    { name = "matplotlib", specifier = ">=3.8" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "openai", marker = "extra == 'eval'", specifier = ">=1.40" },
-    { name = "pandas", specifier = ">=2.1" },
-    { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "requests", specifier = ">=2.31" },
-    { name = "scikit-learn", specifier = ">=1.8.0" },
-    { name = "scipy", specifier = ">=1.11" },
-    { name = "seaborn", specifier = ">=0.13.2" },
-    { name = "semantic-free-code-embedding", extras = ["train", "serve", "eval"], marker = "extra == 'all'" },
-    { name = "sentence-transformers", specifier = ">=5.2.0" },
-    { name = "tensorboard", marker = "extra == 'train'", specifier = ">=2.20.0" },
-    { name = "torch", specifier = ">=2.9,<3" },
-    { name = "tqdm", specifier = ">=4.66" },
-    { name = "transformers", specifier = ">=4.57.3" },
-    { name = "vllm", marker = "extra == 'serve'", specifier = ">=0.13.0" },
-]
-provides-extras = ["train", "serve", "eval", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "ruff", specifier = ">=0.15.10" },
 ]
 
 [[package]]

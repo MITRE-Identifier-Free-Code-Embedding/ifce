@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in improving Semantic-Free Code Embedding (SFCE).
+Thanks for your interest in improving Identifier-Free Code Embedding (IFCE).
 
 ## Development setup
 

@@ -2,11 +2,11 @@
 # Copyright 2026 The MITRE Corporation
 import argparse
 
-from sfce.eval.assemblage_retrieval import analyze_sims
-from sfce.eval.signsrch_benchmark import run_signsrch_exps
-from sfce.paths import DEFAULT_EXPERIMENT_CONFIG, DEFAULT_SIGNSRCH_PATH
-from sfce.processing.add_embeddings import create_embeddings
-from sfce.processing.find_distances import find_distances
+from ifce.eval.assemblage_retrieval import analyze_sims
+from ifce.eval.signsrch_benchmark import run_signsrch_exps
+from ifce.paths import DEFAULT_EXPERIMENT_CONFIG, DEFAULT_SIGNSRCH_PATH
+from ifce.processing.add_embeddings import create_embeddings
+from ifce.processing.find_distances import find_distances
 
 
 def arg_parse():

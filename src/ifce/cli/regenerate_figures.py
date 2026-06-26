@@ -11,10 +11,10 @@ import argparse
 import pickle
 from pathlib import Path
 
-from sfce.config import yaml_safe_load
-from sfce.eval.assemblage_retrieval import K_FOR_RECALLS, gen_products
-from sfce.eval.signsrch_benchmark import gen_signsrch_products
-from sfce.paths import (
+from ifce.config import yaml_safe_load
+from ifce.eval.assemblage_retrieval import K_FOR_RECALLS, gen_products
+from ifce.eval.signsrch_benchmark import gen_signsrch_products
+from ifce.paths import (
     DEFAULT_EXPERIMENT_CONFIG,
     RESULTS_DIR,
     ensure_output_dirs,

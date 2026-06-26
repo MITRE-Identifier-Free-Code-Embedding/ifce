@@ -13,10 +13,10 @@ from sklearn.manifold import TSNE
 from torch import Tensor, cuda, is_tensor
 from tqdm import tqdm
 
-from sfce.config import yaml_safe_load
-from sfce.device import get_device
-from sfce.modeling.models import MODEL_CLASS_MAP
-from sfce.paths import RESULTS_DIR
+from ifce.config import yaml_safe_load
+from ifce.device import get_device
+from ifce.modeling.models import MODEL_CLASS_MAP
+from ifce.paths import RESULTS_DIR
 
 """
 Note "id'd" data refers to data that has been id'd by 

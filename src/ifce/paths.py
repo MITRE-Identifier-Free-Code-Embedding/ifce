@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The MITRE Corporation
-"""Canonical filesystem locations for SFCE.
+"""Canonical filesystem locations for IFCE.
 
 A single source of truth for project directories, replacing the per-script
-``~/semantic-free-code-embedding/...`` defaults and ad-hoc ``../data`` relative
+``~/identifier-free-code-embedding/...`` defaults and ad-hoc ``../data`` relative
 paths that were scattered across the codebase. Every location can be overridden
 with an environment variable so the package works from an installed wheel or a
 relocated checkout.
@@ -14,17 +14,17 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-# Repo root: src/sfce/paths.py -> src/sfce -> src -> <repo root>
+# Repo root: src/ifce/paths.py -> src/ifce -> src -> <repo root>
 PROJECT_ROOT = Path(
     os.environ.get(
-        "SFCE_PROJECT_ROOT",
+        "IFCE_PROJECT_ROOT",
         Path(__file__).resolve().parents[2],
     )
 )
 
-CONFIG_DIR = Path(os.environ.get("SFCE_CONFIG_DIR", PROJECT_ROOT / "config"))
-DATA_DIR = Path(os.environ.get("SFCE_DATA_DIR", PROJECT_ROOT / "data"))
-OUTPUTS_DIR = Path(os.environ.get("SFCE_OUTPUTS_DIR", PROJECT_ROOT / "outputs"))
+CONFIG_DIR = Path(os.environ.get("IFCE_CONFIG_DIR", PROJECT_ROOT / "config"))
+DATA_DIR = Path(os.environ.get("IFCE_DATA_DIR", PROJECT_ROOT / "data"))
+OUTPUTS_DIR = Path(os.environ.get("IFCE_OUTPUTS_DIR", PROJECT_ROOT / "outputs"))
 
 CHECKPOINTS_DIR = OUTPUTS_DIR / "checkpoints"
 RESULTS_DIR = OUTPUTS_DIR / "results"

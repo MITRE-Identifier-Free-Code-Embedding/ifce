@@ -13,7 +13,7 @@ import torch
 from sentence_transformers import SentenceTransformer
 from transformers import AutoModel, AutoTokenizer
 
-from sfce.paths import CHECKPOINTS_DIR
+from ifce.paths import CHECKPOINTS_DIR
 
 # NOTE: vllm (LLM), FlagEmbedding (BGEM3FlagModel) and openai (OpenAI) are
 # imported lazily inside the methods that use them so that importing this module

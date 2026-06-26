@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "semantic-free-code-embedding"
+name = "identifier-free-code-embedding"
 version = "0.1.0"
 description = "Train and evaluate identifier-free code-embedding models that locate functions by what they do rather than how they are named."
 readme = "README.md"
@@ -65,18 +65,18 @@ eval = [
     "openai>=1.40",
 ]
 all = [
-    "semantic-free-code-embedding[train,serve,eval]",
+    "identifier-free-code-embedding[train,serve,eval]",
 ]
 
 [project.scripts]
-sfce-experiment = "sfce.cli.conduct_experiment:conduct_experiment"
-sfce-train = "sfce.cli.train:main"
-sfce-time = "sfce.cli.time_embeddings:cli_main"
+ifce-experiment = "ifce.cli.conduct_experiment:conduct_experiment"
+ifce-train = "ifce.cli.train:main"
+ifce-time = "ifce.cli.time_embeddings:cli_main"
 
 [project.urls]
-Homepage = "https://github.com/mitre/semantic-free-code-embedding"
-Repository = "https://github.com/mitre/semantic-free-code-embedding"
-Issues = "https://github.com/mitre/semantic-free-code-embedding/issues"
+Homepage = "https://gitlab.mitre.org/ifce/identifier-free-code-embedding"
+Repository = "https://gitlab.mitre.org/ifce/identifier-free-code-embedding"
+Issues = "https://gitlab.mitre.org/ifce/identifier-free-code-embedding/issues"
 
 [dependency-groups]
 dev = [
@@ -85,7 +85,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sfce"]
+packages = ["src/ifce"]
 
 [tool.ruff]
 target-version = "py312"
