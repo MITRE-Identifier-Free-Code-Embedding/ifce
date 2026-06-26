@@ -55,3 +55,10 @@ def test_model_registry_is_consistent():
     from ifce.modeling.models import MODEL_CLASS_MAP, MODEL_SIZE_MAP
 
     assert set(MODEL_CLASS_MAP) == set(MODEL_SIZE_MAP)
+
+
+def test_build_model_unknown_name_raises():
+    from ifce.modeling.models import build_model
+
+    with pytest.raises(KeyError):
+        build_model("definitely-not-a-real-model", device="cpu")

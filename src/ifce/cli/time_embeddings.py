@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from ifce.config import yaml_safe_load
 from ifce.device import get_device
-from ifce.modeling.models import MODEL_CLASS_MAP
+from ifce.modeling.models import build_model
 from ifce.paths import DEFAULT_TIME_CONFIG, RESULTS_DIR
 
 TARGET_EMBED_COUNT = 10_000
@@ -188,12 +188,7 @@ def main(
         else:
             device = get_device()
         sleep(5)
-        if "quant" in model:
-            local_model = MODEL_CLASS_MAP[model](
-                device=device, name=model, quantization="fp8"
-            )
-        else:
-            local_model = MODEL_CLASS_MAP[model](device=device, name=model)
+        local_model = build_model(model, device)
         sleep(5)
 
         timing_results[model] = {}

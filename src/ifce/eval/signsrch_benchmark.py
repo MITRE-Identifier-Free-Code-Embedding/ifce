@@ -16,7 +16,7 @@ from scipy import stats
 from tqdm import tqdm
 
 from ifce.config import yaml_safe_load
-from ifce.modeling.models import MODEL_CLASS_MAP
+from ifce.modeling.models import build_model
 from ifce.processing.find_distances import cosine_matrix_calculation
 from ifce.visualization.signsrch_plots import (
     plot_group_map_bars,
@@ -385,14 +385,7 @@ def _get_embeddings_cached(
     local_model = None
     for i in range(max_attempts):
         try:
-            if "quant" in model_name:
-                local_model = MODEL_CLASS_MAP[model_name](
-                    device=device, name=model_name, quantization="fp8"
-                )
-            else:
-                local_model = MODEL_CLASS_MAP[model_name](
-                    device=device, name=model_name
-                )
+            local_model = build_model(model_name, device)
             break
         except Exception as e:
             print(f"retrying... attempt {i}")

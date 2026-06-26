@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from ifce.config import yaml_safe_load
 from ifce.device import get_device
-from ifce.modeling.models import MODEL_CLASS_MAP
+from ifce.modeling.models import build_model
 from ifce.paths import RESULTS_DIR
 
 """
@@ -218,12 +218,7 @@ def create_embeddings(
         # Cache miss — compute embeddings
         print(f"No cache found for {model} — computing embeddings...")
         sleep(5)
-        if "quant" in model:
-            local_model = MODEL_CLASS_MAP[model](
-                device=device, name=model, quantization="fp8"
-            )
-        else:
-            local_model = MODEL_CLASS_MAP[model](device=device, name=model)
+        local_model = build_model(model, device)
         sleep(5)
 
         embedding_list = [[None] * len(ds) for _ in range(2)]
