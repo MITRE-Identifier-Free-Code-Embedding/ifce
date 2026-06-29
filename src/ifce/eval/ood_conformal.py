@@ -330,7 +330,6 @@ def main(
         model_list, similarity_files = find_distances(
             data_input_dir="path/to/hf_dataset",
             model_config_path="path/to/models.yaml",
-            save_euclidean=False,
         )
 
     # 2) Inductive conformal kNN OOD detection per model, using pair structure

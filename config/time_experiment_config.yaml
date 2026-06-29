@@ -2,6 +2,6 @@
 
 models:
   [
-    mitRE_embed_quant_Qwen-0.6B,
-    mitRE_embed__Qwen-0.6B,
+    mitRE-embed-quant-Qwen-0.6B,
+    mitRE-embed-Qwen-0.6B,
   ]

@@ -7,7 +7,6 @@ import torch
 import torch.nn.functional as F
 from datasets import load_from_disk
 from pandas import DataFrame
-from sklearn.metrics import pairwise_distances
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -52,7 +51,6 @@ def cosine_matrix_calculation(full_embeddings, device: str, split_size=1024):
 def find_distances(
     data_input_dir: str,
     model_config_path: str,
-    save_euclidean: bool,
     caching: bool = True,
 ):
     ds = load_from_disk(data_input_dir)
@@ -65,7 +63,7 @@ def find_distances(
 
     for model in model_list:
         new_file_path = DATA_DIR / f"cosine_{model}.parquet"
-        if new_file_path.is_file() and caching and not save_euclidean:  # caching
+        if new_file_path.is_file() and caching:
             similarity_files.append(new_file_path)
             continue
         # Figure out embedding dimension from the first row
@@ -103,40 +101,17 @@ def find_distances(
             full_embeddings[src_ids] = src_embs
             full_embeddings[dec_ids] = dec_embs
 
-        euclidean_matrix = 1 / pairwise_distances(
-            full_embeddings, n_jobs=-1
-        )  # This will contain infs
-
         cosine_matrix = cosine_matrix_calculation(
             full_embeddings=full_embeddings, device=device
         )
 
         all_ids = list(range(num_ids))
-
-        distances = [(cosine_matrix, "cosine")]
-        if save_euclidean:
-            distances.append((euclidean_matrix, "euclidean"))
-
-        for matrix, distance_type in distances:
-            df = DataFrame(
-                matrix,
-                columns=all_ids,
-                index=all_ids,
-            )
-            df.attrs["model"] = model
-            df.attrs["distance_type"] = distance_type
-            df.attrs["embedding_size"] = full_embeddings.shape[
-                1
-            ]  # This should be an embedding size
-
-            # Save / use df as needed
-            tqdm.pandas()
-            df.to_parquet(new_file_path)
-
-            if (
-                distance_type == "cosine"
-            ):  # TODO modify other to support non cosine distances
-                similarity_files.append(new_file_path)
+        df = DataFrame(cosine_matrix, columns=all_ids, index=all_ids)
+        df.attrs["model"] = model
+        df.attrs["distance_type"] = "cosine"
+        df.attrs["embedding_size"] = full_embeddings.shape[1]
+        df.to_parquet(new_file_path)
+        similarity_files.append(new_file_path)
 
     logger.info(
         f"Processed cosine distances at {dict(zip(model_list, similarity_files, strict=False))}"

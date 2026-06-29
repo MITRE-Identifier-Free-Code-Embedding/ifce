@@ -40,13 +40,6 @@ def arg_parse():
         "--batch_size", default=8, type=int, help="Embedding batch size."
     )
 
-    parser.add_argument(
-        "--save_euclidean",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help="Also compute and save Euclidean distance matrices in addition to cosine.",
-    )
-
     return parser.parse_args()
 
 
@@ -63,7 +56,6 @@ def conduct_experiment():
     model_names, sim_files = find_distances(
         data_input_dir=processed_embeddings_ds,
         model_config_path=args.yaml_file_path,
-        save_euclidean=args.save_euclidean,
     )
 
     analyze_sims(

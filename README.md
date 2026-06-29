@@ -78,8 +78,9 @@ uv run accelerate launch -m ifce.modeling.train --data_dir_path $TRAIN_ASSEMBLAG
 
 Training is seeded (`--seed`, default 42) for reproducibility; note that GPU /
 cuDNN / DeepSpeed kernels remain a source of irreducible nondeterminism. The
-resulting checkpoint is written under `outputs/checkpoints/`, where it is
-auto-discovered during evaluation.
+resulting checkpoint is written to `outputs/checkpoints/<--model_id>` (default
+`mitRE-embed-Qwen-0.6B`), where it is auto-discovered during evaluation. The
+`--model_id` must match the id used in `config/experiment_config.yaml`.
 
 ## Evaluation
 

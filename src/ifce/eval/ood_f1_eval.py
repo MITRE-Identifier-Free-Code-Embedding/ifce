@@ -545,13 +545,12 @@ def get_stats_for_f1(
         model_list, similarity_files = find_distances(
             data_input_dir="path/to/hf_dataset",
             model_config_path="path/to/models.yaml",
-            save_euclidean=False,
         )
 
     # 2) Run F1-optimized kNN OOD detection for each model
     k_list = [1, 3, 5, 10, 20, 50]
 
-    for distance_type in ["Cosine", "Euclidean"]:
+    for distance_type in ["Cosine"]:
         results_by_model = {}
 
         for model, distance_file_path in zip(

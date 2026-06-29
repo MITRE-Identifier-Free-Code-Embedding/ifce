@@ -40,12 +40,15 @@ def arg_parse():
         "--model_name",
         default="Qwen/Qwen3-Embedding-0.6B",
         type=str,
+        help="Base embedding model to fine-tune.",
     )
 
     parser.add_argument(
-        "--model_short_name",
-        default="Qwen",
+        "--model_id",
+        default="mitRE-embed-Qwen-0.6B",
         type=str,
+        help="Name of the trained model; also the checkpoint directory name under "
+        "outputs/checkpoints, which must match the id used in the experiment config.",
     )
 
     parser.add_argument(
@@ -64,7 +67,7 @@ def arg_parse():
 def train(
     ds_path: str,
     model_name: str,
-    model_short_name: str,
+    model_id: str,
     grad_accum_steps: int,
     batch_size: int,
     seed: int = 42,
@@ -113,8 +116,8 @@ def train(
     # misc init
     loss = CachedMultipleNegativesRankingLoss(model, mini_batch_size=mini_batch_size)
 
-    run_name = f"mitRE_embed_{model_name.replace('/', '_')}_test"
-    out_path = CHECKPOINTS_DIR / f"mitRE_embed_{model_short_name}" / run_name
+    run_name = model_id
+    out_path = CHECKPOINTS_DIR / model_id
 
     args = SentenceTransformerTrainingArguments(
         dataloader_drop_last=True,
@@ -160,7 +163,7 @@ def main():
     train(
         ds_path=args.data_dir_path,
         model_name=args.model_name,
-        model_short_name=args.model_short_name,
+        model_id=args.model_id,
         grad_accum_steps=args.grad_accum_steps,
         batch_size=args.batch_size,
         seed=args.seed,
