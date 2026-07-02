@@ -1,38 +1,29 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-import pandas as pd
-import numpy as np
-from joblib import Parallel, delayed
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
+import logging
 import os
 import pickle
-import seaborn as sns
-import matplotlib.pyplot as plt
-from modeling.models import MODEL_SIZE_MAP
 from pathlib import Path
-from typing import List
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 from datasets import load_from_disk
-from visualization.visualizations import (
+from joblib import Parallel, delayed
+
+from ifce.modeling.models import MODEL_SIZE_MAP
+from ifce.visualization.assemblage_plots import (
     log_histogram,
-    trimmed_quantile_boxplot,
     scatter_with_fit,
+    trimmed_quantile_boxplot,
 )
+from ifce.paths import RESULTS_DIR
 
 K_FOR_RECALLS = [1, 3, 5, 10]
+
+
+logger = logging.getLogger(__name__)
 
 
 def recall_at_k(rank_series: np.ndarray, k: int):
@@ -263,30 +254,6 @@ def _get_metric_sem_from_ranks(ranks, k_for_recalls):
 
 
 # unused
-def _get_metric_sds_from_ranks(ranks, k_for_recalls):
-    """
-    Compute per-metric standard errors from per-query metric values induced by ranks.
-
-    Returns:
-        dict mapping metric name -> standard error of the mean for that metric
-    """
-    metrics_per_query = compute_query_metrics_from_ranks(ranks, k_for_recalls)
-    sds = {}
-
-    for metric_name, values in metrics_per_query.items():
-        values = np.asarray(values, dtype=float)
-        n = values.size
-        if n == 0:
-            sd = np.nan
-        elif n == 1:
-            sd = 0.0
-        else:
-            sd = values.std(ddof=1)
-        sds[metric_name] = sd
-
-    return sds
-
-
 def _attach_metric_se_columns(df_group, candidate_group, all_ranks, k_for_recalls):
     """
     Add <metric>_SE columns to a candidate-group dataframe, one row per model.
@@ -311,7 +278,7 @@ def _attach_metric_se_columns(df_group, candidate_group, all_ranks, k_for_recall
     for metric in metric_cols:
         se_col = f"{metric}_SE"
         df_group[se_col] = df_group[model_col].map(
-            lambda m: se_by_model[m].get(metric, np.nan)
+            lambda m, metric=metric: se_by_model[m].get(metric, np.nan)
         )
 
     return df_group
@@ -338,7 +305,7 @@ def _plot_metric_with_errorbars(
     palette_size = sns.color_palette("tab20", n_hue)
 
     fig, ax = plt.subplots(figsize=(13, 10), constrained_layout=True)
-    for i, (hue_val, offset) in enumerate(zip(hue_levels, offsets)):
+    for i, (hue_val, _offset) in enumerate(zip(hue_levels, offsets, strict=False)):
         sub = df_plot[df_plot["size (B of params)"] == hue_val]
         means = np.array(
             [
@@ -399,7 +366,7 @@ def _plot_metric_with_errorbars(
     # colors = [tab20(i / max(len(models) - 1, 1)) for i in range(len(models))]
 
     fig, ax = plt.subplots(figsize=(16, 12), constrained_layout=True)
-    for i, (hue_val, offset) in enumerate(zip(hue_levels, offsets)):
+    for i, (hue_val, _offset) in enumerate(zip(hue_levels, offsets, strict=False)):
         sub = df_plot[df_plot["size (B of params)"] == hue_val]
         means = np.array(
             [
@@ -424,7 +391,7 @@ def _plot_metric_with_errorbars(
         # Assign color per x-position, not per hue group
         bar_colors = [palette_model[j] for j in range(n_x)]
         for j, (x_pos, mean, se, color) in enumerate(
-            zip(x_base, means, ses, bar_colors)
+            zip(x_base, means, ses, bar_colors, strict=False)
         ):
             ax.bar(
                 x_pos,
@@ -511,8 +478,8 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
         col_format = "ll" + "r" * (1 + 2 * len(k_for_recalls))
         caption = f"MRR, MRR@ k and Recall@ k for {candidate_group}."
         df_label = f"tab:metrics_{safe_group}"
-        # LaTeX table with caption mentioning the candidate group
-        smaller_df_group.to_latex(
+        # Full metrics table
+        df_group.to_latex(
             f"{out_path}/metrics_table_{safe_group}.tex",
             index=False,
             float_format="%.4f",
@@ -521,14 +488,14 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
             label=df_label,
         )
 
-        # LaTeX table with caption mentioning the candidate group
-        df_group.to_latex(
+        # Reduced ("smaller") metrics table
+        smaller_df_group.to_latex(
             f"{out_path}/metrics_table_{safe_group}_smaller.tex",
             index=False,
             float_format="%.4f",
             column_format=col_format,
-            caption=caption,
-            label=df_label,
+            caption=caption + " (reduced)",
+            label=df_label + "_smaller",
         )
 
         metrics_cols = [
@@ -555,7 +522,7 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
     for candidate_group in candidate_groups:
         plt.figure(figsize=(10, 7), constrained_layout=True)
         palette = sns.color_palette("tab20", n_colors=len(model_names))
-        for color, model_name in zip(palette, model_names):
+        for color, model_name in zip(palette, model_names, strict=False):
             ranks = all_ranks[(model_name, candidate_group)]
             # ECDF gives Recall@k curve: P(rank <= n) vs n
             sns.ecdfplot(data=ranks, stat="proportion", label=model_name, color=color)
@@ -574,12 +541,10 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
 
 
 def analyze_sims(
-    model_names: List[str], cosine_parquet_paths: List[str], data_input_dir: str
+    model_names: list[str], cosine_parquet_paths: list[str], data_input_dir: str
 ):
 
-    sns.set(style="whitegrid")
-
-    out_path = Path(__file__).resolve().parent / Path("experiment_results")
+    out_path = RESULTS_DIR
     os.makedirs(out_path, exist_ok=True)
 
     cpu_count = os.cpu_count()
@@ -635,7 +600,9 @@ def analyze_sims(
         filename=f"{out_path}/function_sigs_boxplot.png",
     )
 
-    for model_name, parquet_path in zip(model_names, cosine_parquet_paths):
+    for model_name, parquet_path in zip(
+        model_names, cosine_parquet_paths, strict=False
+    ):
         df = pd.read_parquet(parquet_path, engine="pyarrow")
 
         half_length = round(len(df) / 2)
@@ -791,5 +758,5 @@ def analyze_sims(
         with open("all_ranks.pkl", "wb") as file:
             pickle.dump(all_ranks, file)
     except Exception as e:
-        print(e)
+        logger.info(e)
     gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names)

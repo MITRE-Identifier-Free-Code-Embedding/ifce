@@ -1,53 +1,43 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from time import sleep
-import re
-import sys
-
-from processing.add_embeddings import yaml_safe_load
-from modeling.models import MODEL_CLASS_MAP
-from tqdm import tqdm
-import pandas as pd
-import numpy as np
-import torch
-import pickle
-from processing.find_distances import cosine_matrix_calculation
-from joblib import Parallel, delayed
-import os
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
 import itertools
-import joblib
-from scipy import stats
+import logging
+import os
+import pickle
+import re
 from pathlib import Path
-from visualization.signsrch_visualizations import (
+from time import sleep
+
+import joblib
+import numpy as np
+import pandas as pd
+import torch
+from joblib import Parallel, delayed
+from scipy import stats
+from tqdm import tqdm
+
+from ifce.config import yaml_safe_load
+from ifce.modeling.models import build_model
+from ifce.processing.find_distances import cosine_matrix_calculation
+from ifce.visualization.signsrch_plots import (
     plot_group_map_bars,
-    plot_wilcoxon_pvalue_heatmap,
-    plot_overlaid_kde,
     plot_map_histograms,
     plot_model_comparison_bars,
+    plot_overlaid_kde,
+    plot_wilcoxon_pvalue_heatmap,
 )
+from ifce.paths import RESULTS_DIR
 
 memory = joblib.Memory(
     location=str(Path(__file__).resolve().parent / Path("joblib_cache"))
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 def parse_signsrch(filepath: str) -> dict[str, str]:
-    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+    with open(filepath, encoding="utf-8", errors="replace") as f:
         text = f.read()
 
     blocks = re.split(r"#{5,}", text)
@@ -218,8 +208,8 @@ def latex_from_summary(
 
     lines.append(r"    \hline")
     lines.append(r"  \end{tabular}")
-    lines.append(f"  \caption{{{caption}}}")
-    lines.append(f"  \label{{{label}}}")
+    lines.append(rf"  \caption{{{caption}}}")
+    lines.append(rf"  \label{{{label}}}")
     lines.append(r"\end{table}")
 
     content = "\n".join(lines) + "\n"
@@ -382,7 +372,7 @@ def get_embeddings_from_model(keys, local_model, batch_size, model_name):
             batch_keys = [batch_keys]  # edge case?
         batch_embeddings = local_model.embed_batch(batch_keys)
 
-        for k, emb in zip(batch_keys, batch_embeddings):
+        for k, emb in zip(batch_keys, batch_embeddings, strict=False):
             embedding_dictionary[k] = emb
     return embedding_dictionary
 
@@ -400,23 +390,14 @@ def _get_embeddings_cached(
     local_model = None
     for i in range(max_attempts):
         try:
-            if "quant" in model_name:
-                local_model = MODEL_CLASS_MAP[model_name](
-                    device=device, name=model_name, quantization="fp8"
-                )
-            else:
-                local_model = MODEL_CLASS_MAP[model_name](
-                    device=device, name=model_name
-                )
+            local_model = build_model(model_name, device)
             break
         except Exception as e:
-            print(f"retrying... attempt {i}")
+            logger.info(f"retrying... attempt {i}")
             if i == max_attempts - 1:
-                raise (
-                    ValueError(
-                        f"Model {model_name} cannot be loaded with exception: {e}"
-                    )
-                )
+                raise ValueError(
+                    f"Model {model_name} cannot be loaded with exception: {e}"
+                ) from e
         sleep(5)
     sleep(5)
 
@@ -446,43 +427,6 @@ def get_AP(relevant, ranked):
         precision_at_k = cum_hits / ranks
         AP = (precision_at_k * hits).sum() / len(relevant)
     return AP
-
-
-def get_group_MAPs(
-    df_no_algo_classes: pd.DataFrame,
-    sigs: dict[str, set],
-    reversed_sigs: dict[str, str],
-    procs: int,
-) -> dict[str, list[float]]:
-    """
-    For each algorithm group, compute the MAP across all its constants.
-    Returns a dict: group_name -> list[AP-per-constant], one entry per group.
-    The caller averages to get MAP, but the list is kept for per-group stats.
-    """
-
-    def find_ranked(x, df_no_algo_classes=df_no_algo_classes):
-        return (
-            df_no_algo_classes.loc[x].drop(index=x).sort_values(ascending=False).index
-        )
-
-    all_constants = list(df_no_algo_classes.index)
-    all_ranked = Parallel(n_jobs=procs, verbose=2)(
-        delayed(find_ranked)(c) for c in all_constants
-    )
-
-    # Group APs by algorithm name
-    group_aps: dict[str, list[float]] = {name: [] for name in sigs}
-    for _, (constant, ranked) in enumerate(
-        tqdm(zip(all_constants, all_ranked), desc="Finding group APs")
-    ):
-        algo_names = reversed_sigs[constant]
-        for algo_name in algo_names:
-            relevant = sigs[algo_name]
-            relevant.remove(constant)
-            ap = get_AP(relevant=relevant, ranked=list(ranked))
-            group_aps[algo_name].append(ap)
-
-    return group_aps  # group -> [AP_c1, AP_c2, ...]
 
 
 def get_AP_from_indices(relevant_idx: np.ndarray, ranked_idx: np.ndarray) -> float:
@@ -589,12 +533,12 @@ def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
             normality_results=normality,
             caption=f"Shapiro–Wilk normality tests for {map_or_ap} distributions, {exp_name}",
             label=f"tab:{map_or_ap.lower()}_normality",
-            file_path=out_path / Path(f"sig_normalit_{extension_name}.tex"),
+            file_path=out_path / Path(f"sig_normality_{extension_name}.tex"),
         )
         paired_results = paired_tests(AP_dict, alpha=alpha)  # if APs are aligned
         # pprint(paired_results)
 
-        tex_paired = latex_table_paired_wilcoxon(
+        latex_table_paired_wilcoxon(
             paired_results,
             caption=f"Pairwise Wilcoxon signed-rank tests for {map_or_ap} by model, {exp_name}",
             label=f"tab:{map_or_ap.lower()}_paired_wilcoxon",
@@ -626,7 +570,7 @@ def run_signsrch_exps(
     model_config_path: str, signsrch_path: str, batch_size: int = 512
 ):
 
-    out_path = Path(__file__).resolve().parent / Path("experiment_results")
+    out_path = RESULTS_DIR
 
     sigs = parse_signsrch(signsrch_path)
 
@@ -735,4 +679,4 @@ def run_signsrch_exps(
 
     gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path)
 
-    print("Completed Signsrch Experiments")
+    logger.info("Completed Signsrch Experiments")

@@ -1,74 +1,24 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from pathlib import Path
-
-from find_distances import find_distances
-import numpy as np
-import pandas as pd
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
+import logging
 import math
 import os
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 from sklearn.metrics import (
-    roc_curve,
-    precision_recall_curve,
     auc,
     average_precision_score,
+    precision_recall_curve,
+    roc_curve,
 )
 
+from ifce.eval.ood_common import compute_knn_nonconformity, partner_index
+from ifce.paths import RESULTS_DIR
+from ifce.processing.find_distances import find_distances
 
-def partner_index(i: int, num_ids: int) -> int:
-    """
-    Given id i in [0, num_ids), return the id of its opposite representation,
-    using the rule:
-        if there are 100 total pairs -> 200 ids,
-        pairs are (0,100), (1,101), (2,102), ...
-    """
-    half = num_ids // 2
-    if i < half:
-        return i + half
-    else:
-        return i - half
-
-
-def _compute_knn_nonconformity(
-    cosine_matrix: np.ndarray,
-    idx_points: np.ndarray,
-    idx_reference: np.ndarray,
-    k: int,
-) -> np.ndarray:
-    """
-    Nonconformity score for each point i in idx_points:
-      alpha_i = average distance to its k nearest neighbors among idx_reference.
-    Distance is 1 - cosine similarity.
-    """
-    if len(idx_reference) < k:
-        raise ValueError(
-            f"k={k} is larger than number of reference points={len(idx_reference)}"
-        )
-
-    # Submatrix of cosine sims between points and reference set
-    sims = cosine_matrix[np.ix_(idx_points, idx_reference)]
-    dists = 1.0 - sims  # convert cosine similarity to distance
-
-    # kth-order statistic via partition: first k entries are the k smallest distances
-    knn_dists = np.partition(dists, kth=k - 1, axis=1)[:, :k]
-    scores = knn_dists.mean(axis=1)
-    return scores
+logger = logging.getLogger(__name__)
 
 
 def build_pair_based_splits_for_f1(
@@ -299,13 +249,13 @@ def knn_ood_f1_with_pairs(
 
     # For each k, compute scores on validation splits and optimize threshold
     for k in sorted(k_list):
-        id_val_scores = _compute_knn_nonconformity(
+        id_val_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=ID_val,
             idx_reference=ID_train,
             k=k,
         )
-        ood_val_scores = _compute_knn_nonconformity(
+        ood_val_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=OOD_val,
             idx_reference=ID_train,
@@ -354,7 +304,7 @@ def knn_ood_f1_with_pairs(
 
     # Evaluate best (k, threshold) on test
     if len(ID_test) > 0:
-        id_test_scores = _compute_knn_nonconformity(
+        id_test_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=ID_test,
             idx_reference=ID_train,
@@ -364,7 +314,7 @@ def knn_ood_f1_with_pairs(
         id_test_scores = np.array([], dtype=float)
 
     if len(OOD_test) > 0:
-        ood_test_scores = _compute_knn_nonconformity(
+        ood_test_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=OOD_test,
             idx_reference=ID_train,
@@ -576,14 +526,18 @@ def make_latex_summary_table(
 
 
 def get_stats_for_f1(
-    model_list=["Qwen3-Embedding-0.6B", "bge-small-en-v1.5"],
-    similarity_files=[
-        "../data/cosine_Qwen3-Embedding-0.6B.parquet",
-        "../data/cosine_bge-small-en-v1.5.parquet",
-    ],
+    model_list=None,
+    similarity_files=None,
 ):
+    if model_list is None:
+        model_list = ["Qwen3-Embedding-0.6B", "bge-small-en-v1.5"]
+    if similarity_files is None:
+        similarity_files = [
+            "../data/cosine_Qwen3-Embedding-0.6B.parquet",
+            "../data/cosine_bge-small-en-v1.5.parquet",
+        ]
 
-    out_path = Path(__file__).resolve().parent / Path("experiment_results")
+    out_path = RESULTS_DIR
     os.makedirs(out_path, exist_ok=True)
 
     if not model_list:
@@ -596,10 +550,12 @@ def get_stats_for_f1(
     # 2) Run F1-optimized kNN OOD detection for each model
     k_list = [1, 3, 5, 10, 20, 50]
 
-    for distance_type in ["Cosine", "Euclidean"]:
+    for distance_type in ["Cosine"]:
         results_by_model = {}
 
-        for model, distance_file_path in zip(model_list, similarity_files):
+        for model, distance_file_path in zip(
+            model_list, similarity_files, strict=False
+        ):
             if distance_type.lower() not in distance_file_path:
                 continue
 
@@ -614,7 +570,7 @@ def get_stats_for_f1(
             )
             results_by_model[model] = res
             tr = res["test_results"]
-            print(
+            logger.info(
                 f"{model}: k*={res['best_k']}, tau*={res['best_threshold']:.8f}, "
                 f"F1_test={tr['F1_test']:.3f}, Prec={tr['precision_test']:.3f}, "
                 f"Rec={tr['recall_test']:.3f}"
@@ -633,7 +589,7 @@ def get_stats_for_f1(
         with open(latex_file_path, "w") as f:
             f.write(latex_table)
 
-    print("Calibrated OOD detection")
+    logger.info("Calibrated OOD detection")
 
 
 if __name__ == "__main__":

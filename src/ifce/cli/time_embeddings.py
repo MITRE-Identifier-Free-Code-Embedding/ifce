@@ -1,36 +1,22 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from modeling.models import MODEL_CLASS_MAP
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
+import argparse
+import gc
+import re
+from pathlib import Path
+from time import perf_counter, sleep
+
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+import pandas as pd
+import seaborn as sns
 from datasets import load_from_disk
 from tqdm import tqdm
-from processing.add_embeddings import yaml_safe_load
-from time import sleep
-import matplotlib.pyplot as plt
-from pathlib import Path
-from time import perf_counter
-import matplotlib.ticker as mticker
-import seaborn as sns
-import re
-import pandas as pd
-import gc
-import os
-import argparse
 
+from ifce.config import yaml_safe_load
+from ifce.device import get_device
+from ifce.modeling.models import build_model
+from ifce.paths import DEFAULT_TIME_CONFIG, RESULTS_DIR
 
 TARGET_EMBED_COUNT = 10_000
 
@@ -42,32 +28,31 @@ VLLM_MEM_PATTERNS = {
 
 def arg_parse():
     parser = argparse.ArgumentParser(
-        description="Conduct Model Timing Experiment.",
-        epilog="",
+        description="Conduct model timing experiment.",
     )
 
     parser.add_argument(
         "--data_dir_path",
-        default=f"{os.path.expanduser('~')}/semantic-free-code-embedding/data/decompiled_summaries_TEST_copy_idd",
+        required=True,
         type=str,
-        help="The path to the directory to process.",
+        help="Path to the Assemblage dataset (a Hugging Face dataset saved with save_to_disk).",
     )
 
     parser.add_argument(
         "--model_config_path",
-        default=f"{os.path.expanduser('~')}/semantic-free-code-embedding/config/time_experiment_config.yaml",
+        default=str(DEFAULT_TIME_CONFIG),
         type=str,
+        help="Path to the timing YAML config (defaults to config/time_experiment_config.yaml).",
     )
 
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 def get_memory(log_file, all_mem_stats, model_name: str):
 
     # After health check confirms server is up
     mem_stats = {k: None for k in VLLM_MEM_PATTERNS}
-    with open(log_file, "r") as f:
+    with open(log_file) as f:
         lines = "".join(f.readlines())
         for key, pattern in VLLM_MEM_PATTERNS.items():
             if "cpu" in model_name:
@@ -181,11 +166,11 @@ def main(
     model_config_path: str,
     data_directory: str,
     batch_size: int = 64,
-    out_path_name: str = "experiment_results",
+    out_path_name: str = "timing",
 ):
-    device = "cuda"
+    device = get_device()
     yaml_config = yaml_safe_load(model_config_path)
-    out_path = Path(__file__).resolve().parent / Path(out_path_name)
+    out_path = RESULTS_DIR / out_path_name
     out_path.mkdir(parents=True, exist_ok=True)
 
     all_mem_stats = {}
@@ -201,14 +186,9 @@ def main(
         if "cpu" in model:
             device = "cpu"
         else:
-            device = "cuda"
+            device = get_device()
         sleep(5)
-        if "quant" in model:
-            local_model = MODEL_CLASS_MAP[model](
-                device=device, name=model, quantization="fp8"
-            )
-        else:
-            local_model = MODEL_CLASS_MAP[model](device=device, name=model)
+        local_model = build_model(model, device)
         sleep(5)
 
         timing_results[model] = {}
@@ -222,7 +202,7 @@ def main(
         ):
             for key in ["decompilation", "source"]:
                 t0 = perf_counter()
-                embeddings = local_model.embed_batch(batch[key])
+                local_model.embed_batch(batch[key])
                 elapsed[key] += perf_counter() - t0
                 total_embedded[key] += len(batch[key])
 
@@ -241,9 +221,13 @@ def main(
     write_mem_stats(all_mem_stats, out_path)
 
 
-if __name__ == "__main__":
+def cli_main():
     args = arg_parse()
     main(
         model_config_path=args.model_config_path,
         data_directory=args.data_dir_path,
     )
+
+
+if __name__ == "__main__":
+    cli_main()

@@ -1,64 +1,16 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from find_cosine_sim import find_cosine_sim
-import numpy as np
-import pandas as pd
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
+import logging
 import math
 
+import numpy as np
+import pandas as pd
+from scipy.stats import norm
 
-def partner_index(i: int, num_ids: int) -> int:
-    """
-    Given id i in [0, num_ids), return the id of its opposite representation,
-    using the rule:
-        if there are 100 total pairs -> 200 ids,
-        pairs are (0,100), (1,101), (2,102), ...
-    """
-    half = num_ids // 2
-    if i < half:
-        return i + half
-    else:
-        return i - half
+from ifce.eval.ood_common import compute_knn_nonconformity, partner_index
+from ifce.processing.find_distances import find_distances
 
-
-def _compute_knn_nonconformity(
-    cosine_matrix: np.ndarray,
-    idx_points: np.ndarray,
-    idx_reference: np.ndarray,
-    k: int,
-) -> np.ndarray:
-    """
-    Nonconformity score for each point i in idx_points:
-      alpha_i = average distance to its k nearest neighbors among idx_reference.
-    Distance is 1 - cosine similarity.
-    """
-    if len(idx_reference) < k:
-        raise ValueError(
-            f"k={k} is larger than number of reference points={len(idx_reference)}"
-        )
-
-    # Submatrix of cosine sims between points and reference set
-    sims = cosine_matrix[np.ix_(idx_points, idx_reference)]
-    dists = 1.0 - sims  # convert cosine similarity to distance
-
-    # kth-order statistic via partition: first k entries are the k smallest distances
-    knn_dists = np.partition(dists, kth=k - 1, axis=1)[:, :k]
-    scores = knn_dists.mean(axis=1)
-    return scores
+logger = logging.getLogger(__name__)
 
 
 def _conformal_threshold(
@@ -87,14 +39,14 @@ def _wilson_interval(
     num_success: int,
     num_total: int,
     alpha: float = 0.05,
-) -> (float, float):
+) -> tuple[float, float]:
     """
     Wilson score confidence interval for a binomial proportion p.
     """
     if num_total == 0:
         return (0.0, 1.0)
-    # 1.96 ≈ z_{0.975} for 95% CI
-    z = 1.96 if abs(alpha - 0.05) < 1e-9 else 1.96
+    # Two-sided critical value z_{1 - alpha/2} (≈ 1.96 for the default 95% CI).
+    z = float(norm.ppf(1.0 - alpha / 2.0))
     phat = num_success / num_total
     denom = 1.0 + z**2 / num_total
     center = (phat + z**2 / (2.0 * num_total)) / denom
@@ -268,7 +220,7 @@ def knn_conformal_ood_with_pairs(
     # Hyperparameter search over k
     for k in sorted(k_list):
         # Nonconformity scores for calibration ID points
-        calib_scores = _compute_knn_nonconformity(
+        calib_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=ID_calib,
             idx_reference=ID_train,
@@ -277,7 +229,7 @@ def knn_conformal_ood_with_pairs(
         tau = _conformal_threshold(calib_scores, epsilon=epsilon)
 
         # Nonconformity scores for OOD validation points
-        ood_val_scores = _compute_knn_nonconformity(
+        ood_val_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=OOD_val,
             idx_reference=ID_train,
@@ -297,7 +249,7 @@ def knn_conformal_ood_with_pairs(
     best_k = max(k_sorted, key=lambda kk: val_results[kk]["tpr_ood_val"])
 
     # With best_k, recompute calibration scores and threshold
-    best_calib_scores = _compute_knn_nonconformity(
+    best_calib_scores = compute_knn_nonconformity(
         cosine_matrix=cosine_matrix,
         idx_points=ID_calib,
         idx_reference=ID_train,
@@ -306,7 +258,7 @@ def knn_conformal_ood_with_pairs(
     best_tau = _conformal_threshold(best_calib_scores, epsilon=epsilon)
 
     # Evaluate on OOD test
-    ood_test_scores = _compute_knn_nonconformity(
+    ood_test_scores = compute_knn_nonconformity(
         cosine_matrix=cosine_matrix,
         idx_points=OOD_test,
         idx_reference=ID_train,
@@ -326,7 +278,7 @@ def knn_conformal_ood_with_pairs(
 
     # Empirical FPR on held-out ID test set (optional)
     if len(ID_test) > 0:
-        id_test_scores = _compute_knn_nonconformity(
+        id_test_scores = compute_knn_nonconformity(
             cosine_matrix=cosine_matrix,
             idx_points=ID_test,
             idx_reference=ID_train,
@@ -365,13 +317,17 @@ def knn_conformal_ood_with_pairs(
 
 
 def main(
-    model_list=["Qwen3-Embedding-0.6B"],
-    similarity_files=["../data/cosine_Qwen3-Embedding-0.6B.parquet"],
+    model_list=None,
+    similarity_files=None,
 ):
+    if model_list is None:
+        model_list = ["Qwen3-Embedding-0.6B"]
+    if similarity_files is None:
+        similarity_files = ["../data/cosine_Qwen3-Embedding-0.6B.parquet"]
 
     if not model_list:
         # 1) Build cosine similarity parquet files (per model)
-        model_list, similarity_files = find_cosine_sim(
+        model_list, similarity_files = find_distances(
             data_input_dir="path/to/hf_dataset",
             model_config_path="path/to/models.yaml",
         )
@@ -382,7 +338,7 @@ def main(
     train_frac = 0.5  # fraction of ids used as kNN reference set
     ood_val_frac = 0.5  # fraction of OOD candidates used for validation vs test
 
-    for model, cosine_path in zip(model_list, similarity_files):
+    for model, cosine_path in zip(model_list, similarity_files, strict=False):
         results = knn_conformal_ood_with_pairs(
             cosine_parquet_path=str(cosine_path),
             k_list=k_list,
@@ -391,22 +347,24 @@ def main(
             ood_val_frac=ood_val_frac,
             random_state=42,
         )
-        print(f"Model: {model}")
-        print("Split sizes:", results["split_sizes"])
-        print("Best k:", results["best_k"])
-        print("Validation TPR per k:")
+        logger.info(f"Model: {model}")
+        logger.info(f"Split sizes: {results['split_sizes']}")
+        logger.info(f"Best k: {results['best_k']}")
+        logger.info("Validation TPR per k:")
         for k in sorted(k_list):
             vr = results["val_results"][k]
-            print(
+            logger.info(
                 f"  k={k}: TPR_OOD_val={vr['tpr_ood_val']:.3f}, num_OOD_val={vr['num_ood_val']}"
             )
         tr = results["test_results"]
-        print(f"Test OOD detection probability P(detect|OOD)={tr['tpr_ood_test']:.3f}")
-        print(f"95% CI (Wilson): {tr['tpr_ci_95']}")
-        print(
+        logger.info(
+            f"Test OOD detection probability P(detect|OOD)={tr['tpr_ood_test']:.3f}"
+        )
+        logger.info(f"95% CI (Wilson): {tr['tpr_ci_95']}")
+        logger.info(
             f"Empirical ID FPR on ID_test={tr['empirical_fpr_id_test']:.3f} over {tr['num_id_test']} points"
         )
-        print(f"Chosen threshold tau={tr['threshold']:.4f}")
+        logger.info(f"Chosen threshold tau={tr['threshold']:.4f}")
 
 
 if __name__ == "__main__":

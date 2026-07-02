@@ -1,24 +1,10 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-import pandas as pd
-import numpy as np
-import seaborn as sns
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+import numpy as np
+import pandas as pd
+import seaborn as sns
 from scipy import stats
 
 
@@ -117,82 +103,6 @@ def scatter_with_fit(
     return r, p
 
 
-def histogram(
-    data,
-    title: str,
-    suptitle: str,
-    xlabel: str,
-    label_a: str = "Group A",
-    label_b: str = "Group B",
-    filename: str = "histogram.png",
-):
-    """Plot two overlapping histograms for Group A and Group B.
-
-    The input array is split exactly in half — the first half becomes
-    Group A and the second half becomes Group B.
-
-    Parameters
-    ----------
-    data : array-like
-        Input data of even length. Split down the middle into two groups.
-    title : str
-        Axes-level title.
-    suptitle : str
-        Figure-level subtitle displayed below the title.
-    xlabel : str
-        Label for the x-axis (the measured variable).
-    label_a : str, optional
-        Legend label for the first group.
-    label_b : str, optional
-        Legend label for the second group.
-    filename : str, optional
-        Path where the figure will be saved.
-    """
-    data = np.asarray(data, dtype=float)
-
-    if len(data) % 2 != 0:
-        raise ValueError("data must have an even length to split into two equal groups")
-
-    mid = len(data) // 2
-    group_a = data[:mid]
-    group_b = data[mid:]
-
-    sns.set_theme(style="whitegrid", context="talk")
-
-    fig, ax = plt.subplots(figsize=(16, 10))
-
-    sns.histplot(
-        group_a,
-        ax=ax,
-        kde=True,
-        color="#3182bd",  # soft blue
-        label=label_a,
-        alpha=0.55,
-        linewidth=0.6,
-    )
-    sns.histplot(
-        group_b,
-        ax=ax,
-        kde=True,
-        color="#e6550d",  # warm orange
-        label=label_b,
-        alpha=0.55,
-        linewidth=0.6,
-    )
-
-    ax.set_title(title, fontsize=16, pad=15)
-    plt.suptitle(suptitle, fontsize=10)
-    ax.set_xlabel(xlabel, fontsize=13)
-    ax.set_ylabel("Count", fontsize=13)
-    ax.legend(fontsize=12)
-
-    sns.despine(trim=True)
-    fig.tight_layout()
-
-    fig.savefig(filename, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-
-
 def log_histogram(
     data,
     title: str,
@@ -269,107 +179,13 @@ def log_histogram(
     )
 
     ax.set_yscale("log")
-    ax.yaxis.set_major_formatter(plt.LogFormatter(labelOnlyBase=False))
+    ax.yaxis.set_major_formatter(mticker.LogFormatter(labelOnlyBase=False))
 
     ax.set_title(title, fontsize=16, pad=15)
     plt.suptitle(suptitle, fontsize=10)
     ax.set_xlabel(xlabel, fontsize=13)
     ax.set_ylabel("Count (log scale)", fontsize=13)
     ax.legend(fontsize=12)
-
-    sns.despine(trim=True)
-    fig.tight_layout()
-
-    fig.savefig(filename, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-
-
-def boxplot(
-    data,
-    title: str,
-    suptitle: str,
-    xlabel: str,
-    label_a: str = "Group A",
-    label_b: str = "Group B",
-    filename: str = "boxplot.png",
-):
-    """Plot two side-by-side box-and-whisker plots for Group A and Group B.
-
-    The input array is split exactly in half — the first half becomes
-    Group A and the second half becomes Group B.
-
-    Parameters
-    ----------
-    data : array-like
-        Input data of even length. Split down the middle into two groups.
-    title : str
-        Axes-level title.
-    suptitle : str
-        Figure-level subtitle displayed below the title.
-    xlabel : str
-        Label for the x-axis (the group axis).
-    label_a : str, optional
-        Legend label for the first group.
-    label_b : str, optional
-        Legend label for the second group.
-    filename : str, optional
-        Path where the figure will be saved.
-    """
-    data = np.asarray(data, dtype=float)
-
-    if len(data) % 2 != 0:
-        raise ValueError("data must have an even length to split into two equal groups")
-
-    mid = len(data) // 2
-    df = pd.DataFrame(
-        {
-            "value": data,
-            "group": [label_a] * mid + [label_b] * (len(data) - mid),
-        }
-    )
-
-    sns.set_theme(style="whitegrid", context="talk")
-
-    fig, ax = plt.subplots(figsize=(16, 10))
-
-    sns.boxplot(
-        data=df,
-        x="group",
-        y="value",
-        ax=ax,
-        palette=(
-            {"Group A": "#3182bd", "Group B": "#e6550d"}
-            if label_a == "Group A"
-            else {label_a: "#3182bd", label_b: "#e6550d"}
-        ),
-        width=0.45,
-        linewidth=1.5,
-        flierprops=dict(
-            marker="o",
-            markerfacecolor="white",
-            markeredgewidth=1.2,
-            markersize=5,
-            alpha=0.7,
-        ),
-    )
-
-    # Overlay a strip of individual points for transparency
-    sns.stripplot(
-        data=df,
-        x="group",
-        y="value",
-        ax=ax,
-        palette={label_a: "#3182bd", label_b: "#e6550d"},
-        size=4,
-        alpha=0.35,
-        jitter=True,
-        linewidth=0.4,
-    )
-
-    ax.set_title(title, fontsize=16, pad=15)
-    plt.suptitle(suptitle, fontsize=10)
-    ax.set_xlabel(xlabel, fontsize=13)
-    ax.set_ylabel("Value", fontsize=13)
 
     sns.despine(trim=True)
     fig.tight_layout()
