@@ -1,0 +1,17 @@
+Identifier-Free Code Embedding (IFCE)
+Copyright 2026 The MITRE Corporation
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Public Release Case Number 26-0894.
+
+------------------------------------------------------------------------------
+Third-party content
+------------------------------------------------------------------------------
+
+data/signsrch.sig
+    The Signsrch signature database is the work of Luigi Auriemma and is
+    redistributed here for benchmarking convenience under its original terms.
+    Source: https://aluigi.altervista.org/mytoolz.htm
+    It is not covered by the Apache-2.0 license that applies to this project's
+    own source code.

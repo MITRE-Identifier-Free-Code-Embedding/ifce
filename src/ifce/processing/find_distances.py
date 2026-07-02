@@ -1,34 +1,20 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from datasets import load_from_disk
-import sys
-import pathlib
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
+import logging
 
-sys.path.append(pathlib.Path(__file__).resolve().parent)
-from processing.add_embeddings import yaml_safe_load
-from pandas import DataFrame
 import numpy as np
-from tqdm import tqdm
 import torch
 import torch.nn.functional as F
-
-from sklearn.metrics import pairwise_distances
+from datasets import load_from_disk
+from pandas import DataFrame
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+from ifce.config import yaml_safe_load
+from ifce.device import get_device
+from ifce.paths import DATA_DIR
+
+logger = logging.getLogger(__name__)
 
 
 def cosine_matrix_calculation(full_embeddings, device: str, split_size=1024):
@@ -65,7 +51,6 @@ def cosine_matrix_calculation(full_embeddings, device: str, split_size=1024):
 def find_distances(
     data_input_dir: str,
     model_config_path: str,
-    save_euclidean: bool,
     caching: bool = True,
 ):
     ds = load_from_disk(data_input_dir)
@@ -73,16 +58,12 @@ def find_distances(
 
     yaml_config_data = yaml_safe_load(model_config_path)
     model_list = yaml_config_data["models"]
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = get_device()
     similarity_files = []
 
     for model in model_list:
-        new_file_path = (
-            pathlib.Path(__file__).parent.parent.parent.resolve()
-            / "data"
-            / f"cosine_{model}.parquet"
-        )
-        if new_file_path.is_file() and caching and not save_euclidean:  # caching
+        new_file_path = DATA_DIR / f"cosine_{model}.parquet"
+        if new_file_path.is_file() and caching:
             similarity_files.append(new_file_path)
             continue
         # Figure out embedding dimension from the first row
@@ -97,7 +78,7 @@ def find_distances(
         num_ids = ds_length * 2
         # full_embeddings[id] will contain the embedding for that id
 
-        def _collate_fn(batch):
+        def _collate_fn(batch, model=model):
             src_ids = torch.tensor([ex["source_id"] for ex in batch])
             dec_ids = torch.tensor([ex["decompilation_id"] for ex in batch])
             src_embs = torch.stack(
@@ -120,40 +101,19 @@ def find_distances(
             full_embeddings[src_ids] = src_embs
             full_embeddings[dec_ids] = dec_embs
 
-        euclidean_matrix = 1 / pairwise_distances(
-            full_embeddings, n_jobs=-1
-        )  # This will contain infs
-
         cosine_matrix = cosine_matrix_calculation(
             full_embeddings=full_embeddings, device=device
         )
 
         all_ids = list(range(num_ids))
+        df = DataFrame(cosine_matrix, columns=all_ids, index=all_ids)
+        df.attrs["model"] = model
+        df.attrs["distance_type"] = "cosine"
+        df.attrs["embedding_size"] = full_embeddings.shape[1]
+        df.to_parquet(new_file_path)
+        similarity_files.append(new_file_path)
 
-        distances = [(cosine_matrix, "cosine")]
-        if save_euclidean:
-            distances.append((euclidean_matrix, "euclidean"))
-
-        for matrix, distance_type in distances:
-            df = DataFrame(
-                matrix,
-                columns=all_ids,
-                index=all_ids,
-            )
-            df.attrs["model"] = model
-            df.attrs["distance_type"] = distance_type
-            df.attrs["embedding_size"] = full_embeddings.shape[
-                1
-            ]  # This should be an embedding size
-
-            # Save / use df as needed
-            tqdm.pandas()
-            df.to_parquet(new_file_path)
-
-            if (
-                distance_type == "cosine"
-            ):  # TODO modify other to support non cosine distances
-                similarity_files.append(new_file_path)
-
-    print(f"Processed cosine distances at {dict(zip(model_list, similarity_files))}")
+    logger.info(
+        f"Processed cosine distances at {dict(zip(model_list, similarity_files, strict=False))}"
+    )
     return model_list, similarity_files
