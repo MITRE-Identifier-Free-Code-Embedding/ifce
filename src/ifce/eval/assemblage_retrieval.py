@@ -18,6 +18,7 @@ from ifce.visualization.assemblage_plots import (
     scatter_with_fit,
     trimmed_quantile_boxplot,
 )
+from ifce.paths import RESULTS_DIR
 
 K_FOR_RECALLS = [1, 3, 5, 10]
 
@@ -543,9 +544,7 @@ def analyze_sims(
     model_names: list[str], cosine_parquet_paths: list[str], data_input_dir: str
 ):
 
-    sns.set(style="whitegrid")
-
-    out_path = Path(__file__).resolve().parent / Path("experiment_results")
+    out_path = RESULTS_DIR
     os.makedirs(out_path, exist_ok=True)
 
     cpu_count = os.cpu_count()

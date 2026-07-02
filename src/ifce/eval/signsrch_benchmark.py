@@ -26,6 +26,7 @@ from ifce.visualization.signsrch_plots import (
     plot_overlaid_kde,
     plot_wilcoxon_pvalue_heatmap,
 )
+from ifce.paths import RESULTS_DIR
 
 memory = joblib.Memory(
     location=str(Path(__file__).resolve().parent / Path("joblib_cache"))
@@ -569,7 +570,7 @@ def run_signsrch_exps(
     model_config_path: str, signsrch_path: str, batch_size: int = 512
 ):
 
-    out_path = Path(__file__).resolve().parent / Path("experiment_results")
+    out_path = RESULTS_DIR
 
     sigs = parse_signsrch(signsrch_path)
 

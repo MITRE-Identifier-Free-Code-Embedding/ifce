@@ -144,8 +144,7 @@ If you use this software or its results, please cite the paper (see
 @misc{ifce2026,
   title  = {Identifier Free Code Embedding Models for Scalable Search},
   author = {Wolos, Eric and Doyle, Michael},
-  year   = {2026},
-  note   = {Under review at NeurIPS 2026}
+  year   = {2026}
 }
 ```
 
