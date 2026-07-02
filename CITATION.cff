@@ -9,6 +9,7 @@ type: software
 authors:
   - given-names: Eric
     family-names: Wolos
+    orcid: "https://orcid.org/0009-0000-9656-5193"
   - given-names: Michael
     family-names: Doyle
     orcid: "https://orcid.org/0009-0002-0229-5693"
@@ -23,6 +24,7 @@ preferred-citation:
   authors:
     - given-names: Eric
       family-names: Wolos
+      orcid: "https://orcid.org/0009-0000-9656-5193"
     - given-names: Michael
       family-names: Doyle
       orcid: "https://orcid.org/0009-0002-0229-5693"
