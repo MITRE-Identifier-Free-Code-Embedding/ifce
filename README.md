@@ -1,68 +1,102 @@
-# identifier free code embedding
+# Identifier-Free Code Embedding (IFCE)
 
-## Overview
+Code accompanying the paper **"Identifier Free Code Embedding Models for Scalable
+Search."** It trains and evaluates code-embedding models that position their
+embeddings according to *what a function does* rather than how its variables are
+named or its identifiers are spelled.
 
-This repository exists to reproduce the experiments performed in the paper Identifier Free Code Embedding Models for Scalable Search 
+This is accomplished by training with a contrastive learning objective that
+associates functions with their pseudo-C (decompiled) representations, instead of
+those with similar naming conventions or source representations.
 
-This experiment suite is designed to test and improve code embedding models at positioning their embeddings in space according to what a function does, and not how its variables are named or its identifiers.
+Evaluation is performed through two retrieval benchmarks:
 
-This is accomplished by training with a contrastive learning objective that associates functions with their pseudo-c (decompiled) representations, instead of those with similar naming conventions or source representations.
+- **Assemblage** — source ↔ decompilation association
+- **Signsrch** — algorithm-constant association
 
-Evaluation is accomplished through the following benchmarks:
+The importable package is named `ifce`.
 
-* _Assemblage_ - source to decomplilation association (and vice versa)
-* _Signsrch_ - algorithm constant association
+## Installation
 
+This project uses [uv](https://docs.astral.sh/uv/). Install it via:
 
-## Requirements
-
-This project uses the uv library. To get started, install uv via:
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Using uv with any of the commands below, or calling:
+A baseline install is CPU/macOS friendly and is enough to import the package and
+run the test suite:
+
 ```bash
 uv sync
 ```
 
-will automatically ensure your environment is configured correctly according to the pyproject.toml file.
+The heavy, GPU-oriented dependencies are split into optional extras so the core
+install stays lightweight. Install the ones you need:
 
-Download the appropriate datasets and pass them into conduct_experiment.py. For instance, the Signsrch dataset:
+| Extra      | Provides                                              |
+|------------|-------------------------------------------------------|
+| `train`    | `accelerate`, `deepspeed`, `bitsandbytes`, `tensorboard` (distributed/quantized training) |
+| `serve`    | `vllm` (high-throughput inference)                    |
+| `eval`     | `flagembedding`, `openai` (extra evaluation backends) |
+| `all`      | everything above                                      |
 
 ```bash
-wget https://aluigi.altervista.org/mytoolz/signsrch.sig.zip 
+# e.g. for training + serving on a CUDA machine
+uv sync --extra train --extra serve --extra eval
+```
+
+## Data
+
+Download the Signsrch signature database into `data/`:
+
+```bash
+wget https://aluigi.altervista.org/mytoolz/signsrch.sig.zip
 unzip signsrch.sig.zip
 mv signsrch.sig ./data
 ```
 
-Our variant of the Assemblage test dataset should be either included with the repo at /data/ or available from Huggingface (link TBD).
+Our train/test splits are derived from the
+[Assemblage dataset](https://assemblage-dataset.net/) and provided as a Hugging
+Face dataset saved with `save_to_disk`. The processed variant will be published
+to the Hugging Face Hub (link forthcoming).
 
 ## Training
 
-We perform distributed training with the [accelerate](https://huggingface.co/docs/accelerate/index) library. To add a default configuration, run:
+Distributed training uses [accelerate](https://huggingface.co/docs/accelerate/index).
+Create a default configuration once:
 
 ```bash
 uv run accelerate config
 ```
 
-To train a new model with the train_model.py script:
+Then train (requires the `train` extra):
 
 ```bash
-uv run accelerate launch ifce/modeling/train_model.py --data_dir_path $TRAIN_ASSEMBLAGE_PATH
+uv run accelerate launch -m ifce.modeling.train --data_dir_path $TRAIN_ASSEMBLAGE_PATH
 ```
 
-The resulting model should populate the ifce/models directory for its detection during evaluation.
+Training is seeded (`--seed`, default 42) for reproducibility; note that GPU /
+cuDNN / DeepSpeed kernels remain a source of irreducible nondeterminism. The
+resulting checkpoint is written to `outputs/checkpoints/<--model_id>` (default
+`mitRE-embed-Qwen-0.6B`), where it is auto-discovered during evaluation. The
+`--model_id` must match the id used in `config/experiment_config.yaml`.
 
 ## Evaluation
 
-To run evaluation, use:
-
 ```bash
-uv run python ifce/conduct_experiment.py --data_dir_path $TEST_ASSEMBLAGE_PATH --yaml_file_path $CONFIG_PATH --signsrch_path $SIGNSRCH_PATH
+uv run ifce-experiment \
+    --data_dir_path $TEST_ASSEMBLAGE_PATH \
+    --yaml_file_path config/experiment_config.yaml \
+    --signsrch_path data/signsrch.sig
 ```
 
-Evaluation results will populate in ifce/experiment_results. Some intermediate artifacts will be saved in the data directory. For example, latex tables will be generated that should look similar to:
+Evaluation results (figures, LaTeX tables) populate `outputs/results/`;
+intermediate cosine-similarity matrices and embeddings are stored under
+`data/` and `outputs/distances/`. Figures can be re-rendered from saved pickles
+without rerunning the experiment via `uv run python -m ifce.cli.regenerate_figures`.
+
+A generated results table looks similar to:
 
 **Table: MRR, MRR@k and Recall@k for Searching Decompiled to Source, Decompilation and Source Candidates.**
 | Model                                 | MRR    | Recall@1 | Recall@5 | Recall@10 | MRR@10 |
@@ -80,14 +114,43 @@ Evaluation results will populate in ifce/experiment_results. Some intermediate a
 | jina-embeddings-v2-base-code          | 0.0001 | 0.0000   | 0.0000   | 0.0000    | 0.0000 |
 | nomic-embed-code                      | 0.0209 | 0.0166   | 0.0253   | 0.0290    | 0.0203 |
 
-## Contents
+## Repository layout
 
-Scripts are present within the /ifce directory. Experimental results (figures, tables, etc.), and models are made available after running these scripts under /ifce/experiment_results and /ifce/models.
+```
+src/ifce/          importable package
+  cli/             runnable entry points (ifce-experiment, ifce-train, ifce-time, regenerate_figures)
+  modeling/        embedding model wrappers + training
+  processing/      embedding generation and distance-matrix computation
+  eval/            Assemblage retrieval, Signsrch benchmark, OOD analyses
+  visualization/   plotting
+  paths.py         canonical project directories (override via IFCE_* env vars)
+config/            experiment / timing / training YAML configs
+data/              inputs (signsrch.sig); generated parquet/embeddings (gitignored)
+outputs/           generated artifacts: checkpoints/, results/, distances/ (gitignored)
+tests/             import smoke + unit tests
+```
 
-Although not strictly required by the scripts, data may be stored under the /data directory. Intermediate products, such as matrices of cosine similarity and stored embeddings, will also be stored in /data.
+## Development
 
-Configuration yamls are stored under /config. These correspond to scripts for timing, training, and testing experiments.
+See [CONTRIBUTING.md](CONTRIBUTING.md). In short: `uv sync`, then
+`uv run ruff check . --fix`, `uv run ruff format .`, and `uv run pytest`.
 
-### Copyright
+## Citation
 
-Copyright ©2026 The MITRE Corporation. ALL RIGHTS RESERVED. Public Release Case Number 26-0894.
+If you use this software or its results, please cite the paper (see
+[CITATION.cff](CITATION.cff)):
+
+```bibtex
+@misc{ifce2026,
+  title  = {Identifier Free Code Embedding Models for Scalable Search},
+  author = {Wolos, Eric and Doyle, Michael},
+  year   = {2026}
+}
+```
+
+## License
+
+Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE) and
+[NOTICE](NOTICE).
+
+Copyright © 2026 The MITRE Corporation. Public Release Case Number 26-0894.

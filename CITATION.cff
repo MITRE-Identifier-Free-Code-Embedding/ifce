@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software or its results, please cite the paper below."
+title: "Identifier-Free Code Embedding (IFCE)"
+abstract: >-
+  Code for training and evaluating identifier-free code-embedding models that
+  locate functions in embedding space by what they do rather than by their
+  identifiers, using a contrastive objective over source / decompiled pairs.
+type: software
+authors:
+  - given-names: Eric
+    family-names: Wolos
+    orcid: "https://orcid.org/0009-0000-9656-5193"
+  - given-names: Michael
+    family-names: Doyle
+    orcid: "https://orcid.org/0009-0002-0229-5693"
+repository-code: "https://github.com/MITRE-Identifier-Free-Code-Embedding/Identifier-Free-Code-Embedding"
+url: "https://github.com/MITRE-Identifier-Free-Code-Embedding"
+license: Apache-2.0
+version: "0.1.0"
+preferred-citation:
+  type: unpublished
+  title: "Identifier Free Code Embedding Models for Scalable Search"
+  year: 2026
+  authors:
+    - given-names: Eric
+      family-names: Wolos
+      orcid: "https://orcid.org/0009-0000-9656-5193"
+    - given-names: Michael
+      family-names: Doyle
+      orcid: "https://orcid.org/0009-0002-0229-5693"

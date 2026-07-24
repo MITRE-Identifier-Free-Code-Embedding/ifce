@@ -1,24 +1,10 @@
-# Copyright 2026 The MITRE corporation
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the “Software”), to deal
-# in the Software without restriction, including without limitation the
-# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The MITRE Corporation
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 
 def plot_group_map_bars(
@@ -56,7 +42,7 @@ def plot_group_map_bars(
     colors = [tab20(i / max(len(models) - 1, 1)) for i in range(len(models))]
 
     fig, ax = plt.subplots(figsize=figsize)
-    for i, (model, color) in enumerate(zip(models, colors)):
+    for i, (model, color) in enumerate(zip(models, colors, strict=False)):
         vals = [
             plot_df.loc[
                 (plot_df["model"] == model) & (plot_df["group"] == g), "MAP"
@@ -184,31 +170,6 @@ def plot_wilcoxon_pvalue_heatmap(
     return fig, ax
 
 
-def plot_overlaid_histograms(ap_dict, bins=20, density=False, alpha=0.4):
-    """
-    Plot overlaid histograms for each model on the same axes.
-    """
-    plt.figure(figsize=(16, 10))
-    for model, ap_list in ap_dict.items():
-        plt.hist(
-            ap_list,
-            bins=bins,
-            density=density,
-            alpha=alpha,
-            label=model,
-            edgecolor="black",
-            linewidth=0.5,
-        )
-    plt.xlabel("Average Precision")
-    plt.ylabel("Density" if density else "Count")
-    plt.title("Overlaid AP Distributions by Model")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    plt.savefig("overlaid_histograms.png")
-    plt.close()
-
-
 def plot_overlaid_kde(ap_dict, title: str, fig_path: str | Path, bw_method="scott"):
     """
     Optional: plot overlaid kernel density estimates for smoother distribution comparison.
@@ -226,7 +187,6 @@ def plot_overlaid_kde(ap_dict, title: str, fig_path: str | Path, bw_method="scot
     plt.title(title)
     plt.legend()
     plt.tight_layout()
-    plt.show()
     plt.savefig(fig_path)
     plt.close()
 
@@ -270,7 +230,6 @@ def plot_map_histograms(
     plt.suptitle(suptitle)
     plt.legend()
     plt.tight_layout()
-    plt.show()
     plt.savefig(f"{out_path}/sig_hist_{extension}.png")
 
 
@@ -302,7 +261,7 @@ def plot_model_comparison_bars(
     x = np.arange(len(models))
 
     fig, ax = plt.subplots(figsize=figsize)
-    bars = ax.bar(
+    ax.bar(
         x,
         means,
         width=0.6,
