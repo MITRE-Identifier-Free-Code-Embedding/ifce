@@ -1,8 +1,8 @@
 models:
   [
   BinSeek-Embedding,
-  mitRE-embed-Qwen-0.6B,
-  mitRE-embed-quant-Qwen-0.6B,
+  BUSTA-IFCE-Qwen3-0.6B,
+  BUSTA-IFCE-Qwen3-0.6B-FP8,
   Qwen3-Embedding-0.6B,
   bge-small-en-v1.5,
   "bge-m3",

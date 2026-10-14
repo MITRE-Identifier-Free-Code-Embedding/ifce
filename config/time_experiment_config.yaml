@@ -2,6 +2,6 @@
 
 models:
   [
-    mitRE-embed-quant-Qwen-0.6B,
-    mitRE-embed-Qwen-0.6B,
+    BUSTA-IFCE-Qwen3-0.6B-FP8,
+    BUSTA-IFCE-Qwen3-0.6B,
   ]

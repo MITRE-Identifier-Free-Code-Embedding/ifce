@@ -30,7 +30,7 @@ set -euo pipefail
 # --- Infrastructure config (EDIT ME) ---
 GPUS_PER_NODE=4                                  # keep in sync with --gres=gpu:N
 MODEL_NAME="Qwen/Qwen3-Embedding-0.6B"           # base model to fine-tune
-MODEL_ID="mitRE-embed-Qwen-0.6B"                 # checkpoint name; must match config
+MODEL_ID="BUSTA-IFCE-Qwen3-0.6B"                 # checkpoint name; must match config
 BATCH_SIZE=64
 GRAD_ACCUM=2
 SEED=42
