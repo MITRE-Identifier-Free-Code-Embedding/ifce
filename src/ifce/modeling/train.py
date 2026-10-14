@@ -45,7 +45,7 @@ def arg_parse():
 
     parser.add_argument(
         "--model_id",
-        default="mitRE-embed-Qwen-0.6B",
+        default="BUSTA-IFCE-Qwen3-0.6B",
         type=str,
         help="Name of the trained model; also the checkpoint directory name under "
         "outputs/checkpoints, which must match the id used in the experiment config.",

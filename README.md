@@ -79,7 +79,7 @@ uv run accelerate launch -m ifce.modeling.train --data_dir_path $TRAIN_ASSEMBLAG
 Training is seeded (`--seed`, default 42) for reproducibility; note that GPU /
 cuDNN / DeepSpeed kernels remain a source of irreducible nondeterminism. The
 resulting checkpoint is written to `outputs/checkpoints/<--model_id>` (default
-`mitRE-embed-Qwen-0.6B`), where it is auto-discovered during evaluation. The
+`BUSTA-IFCE-Qwen3-0.6B`), where it is auto-discovered during evaluation. The
 `--model_id` must match the id used in `config/experiment_config.yaml`.
 
 ## Evaluation
@@ -102,8 +102,8 @@ A generated results table looks similar to:
 | Model                                 | MRR    | Recall@1 | Recall@5 | Recall@10 | MRR@10 |
 |---------------------------------------|--------|----------|----------|-----------|--------|
 | BinSeek-Embedding                     | 0.0802 | 0.0594   | 0.1005   | 0.1221    | 0.0771 |
-| **mitRE-embed-Qwen-0.6B**             | **0.4104** | **0.3065** | **0.5176** | **0.6427** | **0.3983** |
-| mitRE-embed-quant-Qwen-0.6B           | 0.4083 | 0.3047   | 0.5162   | 0.6406    | 0.3961 |
+| **BUSTA-IFCE-Qwen3-0.6B**             | **0.4104** | **0.3065** | **0.5176** | **0.6427** | **0.3983** |
+| BUSTA-IFCE-Qwen3-0.6B-FP8           | 0.4083 | 0.3047   | 0.5162   | 0.6406    | 0.3961 |
 | Qwen3-Embedding-0.6B                  | 0.0569 | 0.0434   | 0.0714   | 0.0822    | 0.0551 |
 | bge-small-en-v1.5                     | 0.0075 | 0.0056   | 0.0095   | 0.0113    | 0.0072 |
 | bge-m3                                | 0.0049 | 0.0034   | 0.0062   | 0.0078    | 0.0046 |

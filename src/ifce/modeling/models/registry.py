@@ -79,12 +79,12 @@ def discover_custom_models() -> None:
 def build_model(name: str, device: str = "cpu", **kwargs) -> EmbeddingModel:
     """Instantiate the embedding model registered under ``name``.
 
-    Quantized checkpoints (those whose name contains "quant") default to fp8
-    quantization unless overridden, centralizing the quant handling that was
-    previously copy-pasted across the embedding/timing/benchmark entry points.
+    Quantized checkpoints (those whose name contains "quant" or "fp8") default
+    to fp8 quantization unless overridden, centralizing the quant handling that
+    was previously copy-pasted across the embedding/timing/benchmark entry points.
     """
     cls = MODEL_CLASS_MAP[name]
-    if "quant" in name:
+    if "quant" in name or "fp8" in name.lower():
         kwargs.setdefault("quantization", "fp8")
     return cls(name=name, device=device, **kwargs)
 

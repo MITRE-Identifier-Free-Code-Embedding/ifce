@@ -25,10 +25,10 @@
 #
 # MODELS: every id in the YAML must be resolvable at eval time:
 #   * HF-hub / vLLM models are pulled automatically;
-#   * custom fine-tuned ids (e.g. mitRE-embed-*Qwen*) require a matching
+#   * custom fine-tuned ids (e.g. BUSTA-IFCE-*Qwen3*) require a matching
 #     checkpoint dir under outputs/checkpoints/ produced by train_slurm.sh.
-#   The default config lists BOTH mitRE-embed-Qwen-0.6B AND
-#   mitRE-embed-quant-Qwen-0.6B -- trim the list, or produce both checkpoints,
+#   The default config lists BOTH BUSTA-IFCE-Qwen3-0.6B AND
+#   BUSTA-IFCE-Qwen3-0.6B-FP8 -- trim the list, or produce both checkpoints,
 #   or eval will KeyError on the missing one.
 #
 # GPU: eval is single-process on ONE GPU. The Signsrch stage hardcodes
