@@ -1,6 +1,6 @@
 # Identifier-Free Code Embedding (IFCE)
 
-Code accompanying the paper **"Identifier Free Code Embedding Models for Scalable
+Code accompanying the paper **"Identifier-Free Code Embedding Models for Scalable
 Search."** It trains and evaluates code-embedding models that position their
 embeddings according to *what a function does* rather than how its variables are
 named or its identifiers are spelled.
@@ -142,7 +142,7 @@ If you use this software or its results, please cite the paper (see
 
 ```bibtex
 @misc{ifce2026,
-  title  = {Identifier Free Code Embedding Models for Scalable Search},
+  title  = {Identifier-Free Code Embedding Models for Scalable Search},
   author = {Wolos, Eric and Doyle, Michael},
   year   = {2026}
 }
