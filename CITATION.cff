@@ -19,7 +19,7 @@ license: Apache-2.0
 version: "0.1.0"
 preferred-citation:
   type: unpublished
-  title: "Identifier Free Code Embedding Models for Scalable Search"
+  title: "Identifier-Free Code Embedding Models for Scalable Search"
   year: 2026
   authors:
     - given-names: Eric
