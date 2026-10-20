@@ -82,6 +82,13 @@ resulting checkpoint is written to `outputs/checkpoints/<--model_id>` (default
 `BUSTA-IFCE-Qwen3-0.6B`), where it is auto-discovered during evaluation. The
 `--model_id` must match the id used in `config/experiment_config.yaml`.
 
+Two flags control training speed. `--max_seq_length` (default 2048) caps the
+context; leaving it at the base model's native length (32768 for
+Qwen3-Embedding-0.6B) makes iterations slow and OOM-prone on long functions.
+`--loss_mini_batch_size` (default 16) chunks the cached-loss embedding
+computation; it affects speed and memory only, not the result, so raise it to go
+faster or lower it if you hit OOM.
+
 ## Evaluation
 
 ```bash
