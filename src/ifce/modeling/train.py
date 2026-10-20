@@ -60,6 +60,25 @@ def arg_parse():
 
     parser.add_argument("--batch_size", default=64, type=int, help="Batch size")
 
+    parser.add_argument(
+        "--max_seq_length",
+        default=2048,
+        type=int,
+        help="Max input length in tokens. Caps the model context (and thus the "
+        "per-side truncation of the training data). Qwen3-Embedding-0.6B defaults "
+        "to 32768, which is slow and OOM-prone on long functions; 2048 matches the "
+        "reported runs.",
+    )
+
+    parser.add_argument(
+        "--loss_mini_batch_size",
+        default=16,
+        type=int,
+        help="Chunk size for CachedMultipleNegativesRankingLoss. Affects speed and "
+        "memory only, not the result (the cached gradient is identical). Larger is "
+        "faster; lower it if you hit OOM.",
+    )
+
     args = parser.parse_args()
     return args
 
@@ -71,6 +90,8 @@ def train(
     grad_accum_steps: int,
     batch_size: int,
     seed: int = 42,
+    max_seq_length: int = 2048,
+    loss_mini_batch_size: int = 16,
 ):
 
     # Seed everything for reproducible data splits and training. Note that GPU /
@@ -80,6 +101,10 @@ def train(
 
     # model init
     model = SentenceTransformer(model_name)
+    # Cap the context before deriving the data truncation below. Qwen3-Embedding-0.6B
+    # defaults to a 32k context, which makes the rare very long functions slow and
+    # OOM-prone; capping here matches the reported runs.
+    model.max_seq_length = max_seq_length
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     # Data init
@@ -110,11 +135,13 @@ def train(
     split_ds = ds.train_test_split(test_size=0.01, seed=seed)
     train_ds, val_ds = split_ds["train"], split_ds["test"]
 
-    mini_batch_size = 1  # In nearly every case, this should always be 1
     eval_batch_size = max(int(batch_size / 16), 1)  # just to be safe
 
-    # misc init
-    loss = CachedMultipleNegativesRankingLoss(model, mini_batch_size=mini_batch_size)
+    # misc init. mini_batch_size only chunks the cached-loss embedding computation
+    # (speed/memory); it does not change the gradient or the result.
+    loss = CachedMultipleNegativesRankingLoss(
+        model, mini_batch_size=loss_mini_batch_size
+    )
 
     run_name = model_id
     out_path = CHECKPOINTS_DIR / model_id
@@ -167,6 +194,8 @@ def main():
         grad_accum_steps=args.grad_accum_steps,
         batch_size=args.batch_size,
         seed=args.seed,
+        max_seq_length=args.max_seq_length,
+        loss_mini_batch_size=args.loss_mini_batch_size,
     )
 
 
