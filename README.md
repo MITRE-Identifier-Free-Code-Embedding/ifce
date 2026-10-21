@@ -91,6 +91,58 @@ faster or lower it if you hit OOM.
 
 ## Evaluation
 
+### Evaluate a checkpoint (rebuttal retrieval protocol)
+
+From a checkout of `main`, install the core dependencies and evaluate any local
+SentenceTransformer checkpoint or Hugging Face model ID:
+
+```bash
+uv sync
+uv run ifce eval /path/to/checkpoint --data-dir /path/to/test-dataset
+```
+
+If `TEST_ASSEMBLAGE_PATH` is already set, the command is simply:
+
+```bash
+uv run ifce eval /path/to/checkpoint --output results/new-loss.json
+```
+
+This runs the lightweight retrieval evaluation used for the rebuttal experiments.
+It reports MRR, Recall@1, and Recall@10 for both Decompiled→Source and
+Source→Decompiled, using a combined pool of all source and decompiled candidates
+and excluding the query itself. The matching target is the opposite representation
+in the same dataset row. Ties use the original rebuttal script's optimistic rank:
+one plus the number of strictly higher scores. The full paper pipeline below sorts
+scores and can order ties differently; do not assume the two implementations are
+bit-for-bit identical.
+
+The dataset must be saved with `datasets.save_to_disk` and contain `source` and
+`decompilation` string columns. A saved Dataset works directly. For a DatasetDict,
+the `test` split is selected if present, otherwise the only split; use `--split`
+to select explicitly. The complete selected split is used, without sampling or
+deduplication. With the original test set this is 29,500 pairs / 59,000 candidates.
+
+Defaults: maximum input length **2048 tokens**, encoding batch size **128**, and
+ranking chunks of **512 queries**. CUDA is selected when available, otherwise CPU.
+Keep the dataset and token limit identical when comparing loss functions. Lower
+`--batch-size` if embedding runs out of GPU memory, or `--rank-batch-size` if ranking
+runs out of memory. Example with explicit settings:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 uv run ifce eval /path/to/checkpoint \
+    --max-seq-length 2048 --batch-size 32 --output results/new-loss.json
+```
+
+JSON output records both directions' metrics, dataset path/split, checkpoint,
+token limit, batch sizes, device, pool size, tie policy, and elapsed time. Model
+registration, vLLM, Signsrch files, and the `eval`/`serve` extras are not required.
+Only enable `--trust-remote-code` for checkpoints whose code you trust.
+Use `uv run ifce eval --help` for all options; `uv run python -m ifce eval` is
+equivalent. Existing `ifce-train`, `ifce-experiment`, and `ifce-time` commands remain
+available.
+
+### Full paper benchmark suite
+
 ```bash
 uv run ifce-experiment \
     --data_dir_path $TEST_ASSEMBLAGE_PATH \
