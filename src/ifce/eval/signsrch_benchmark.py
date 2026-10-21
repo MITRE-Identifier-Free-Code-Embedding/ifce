@@ -18,6 +18,7 @@ from tqdm import tqdm
 
 from ifce.config import yaml_safe_load
 from ifce.modeling.models import build_model
+from ifce.paths import RESULTS_DIR
 from ifce.processing.find_distances import cosine_matrix_calculation
 from ifce.visualization.signsrch_plots import (
     plot_group_map_bars,
@@ -26,7 +27,6 @@ from ifce.visualization.signsrch_plots import (
     plot_overlaid_kde,
     plot_wilcoxon_pvalue_heatmap,
 )
-from ifce.paths import RESULTS_DIR
 
 memory = joblib.Memory(
     location=str(Path(__file__).resolve().parent / Path("joblib_cache"))

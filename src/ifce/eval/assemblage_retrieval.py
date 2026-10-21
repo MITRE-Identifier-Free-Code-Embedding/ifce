@@ -3,7 +3,6 @@
 import logging
 import os
 import pickle
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,12 +12,12 @@ from datasets import load_from_disk
 from joblib import Parallel, delayed
 
 from ifce.modeling.models import MODEL_SIZE_MAP
+from ifce.paths import RESULTS_DIR
 from ifce.visualization.assemblage_plots import (
     log_histogram,
     scatter_with_fit,
     trimmed_quantile_boxplot,
 )
-from ifce.paths import RESULTS_DIR
 
 K_FOR_RECALLS = [1, 3, 5, 10]
 

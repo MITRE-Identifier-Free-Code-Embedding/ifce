@@ -50,6 +50,7 @@ dependencies = [
     "torch>=2.9,<3",
     "tqdm>=4.66",
     "transformers>=4.57.3",
+    "typer>=0.16",
 ]
 
 [project.optional-dependencies]
@@ -72,6 +73,7 @@ all = [
 ]
 
 [project.scripts]
+ifce = "ifce.cli.main:app"
 ifce-experiment = "ifce.cli.conduct_experiment:conduct_experiment"
 ifce-train = "ifce.cli.train:main"
 ifce-time = "ifce.cli.time_embeddings:cli_main"
