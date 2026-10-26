@@ -16,6 +16,16 @@ Evaluation is performed through two retrieval benchmarks:
 
 The importable package is named `ifce`.
 
+## Models, demo, and paper
+
+- Model: [the-mitre-corporation/BUSTA-IFCE-Qwen3-0.6B](https://huggingface.co/the-mitre-corporation/BUSTA-IFCE-Qwen3-0.6B), the headline identifier-free embedding model on the Hugging Face Hub.
+- Demo: [Identifier-free code search](https://huggingface.co/spaces/the-mitre-corporation/BUSTA-IFCE-Code-Search), matching real decompiled functions to source.
+- Collection: [Reverse engineering at MITRE](https://huggingface.co/collections/the-mitre-corporation/reverse-engineering-6adfb4f22d67e12a47b1a25f).
+- Paper: [arXiv:2605.05251](https://arxiv.org/abs/2605.05251).
+
+> Naming note: earlier versions of the paper and this code refer to the released
+> model as `mitRE-embed-Qwen-0.6B`. It is the same model as `BUSTA-IFCE-Qwen3-0.6B`.
+
 ## Installation
 
 This project uses [uv](https://docs.astral.sh/uv/). Install it via:
