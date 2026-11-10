@@ -7,20 +7,29 @@ import pytest
 import torch
 
 
-def test_ranks_match_rebuttal_with_ties_and_self_matches():
+@pytest.mark.parametrize("distance_type", ["cosine", "hyperbolic"])
+def test_ranks_match_rebuttal_with_ties_and_self_matches(distance_type):
     from ifce.eval.checkpoint import combined_pool_metrics
+    from ifce.modeling.losses import negative_lorentz_distance
 
-    source = torch.tensor([[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
-    decompiled = torch.tensor([[0.8, 0.6], [1.0, 0.0], [0.0, 1.0]])
+    # The zero vector maps to the Lorentz origin, so these modes can rank it
+    # differently relative to an orthogonal target. Include duplicates for ties.
+    source = torch.tensor([[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 0.0]])
+    decompiled = torch.tensor([[0.0, 1.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]])
+    n = len(source)
     pool = torch.cat([source, decompiled])
     expected = {}
     for name, queries, self_offset, target_offset in [
-        ("decompiled_to_source", decompiled, 3, 0),
-        ("source_to_decompiled", source, 0, 3),
+        ("decompiled_to_source", decompiled, n, 0),
+        ("source_to_decompiled", source, 0, n),
     ]:
         ranks = []
         for i, query in enumerate(queries):
-            scores = query @ pool.T
+            scores = (
+                query @ pool.T
+                if distance_type == "cosine"
+                else negative_lorentz_distance(query[None], pool, 0.3)[0]
+            )
             target = scores[target_offset + i].clone()
             scores[self_offset + i] = -1e9
             ranks.append(int((scores > target).sum()) + 1)
@@ -30,7 +39,48 @@ def test_ranks_match_rebuttal_with_ties_and_self_matches():
             "recall_at_10": np.mean(np.array(ranks) <= 10),
         }
     for chunk_size in (1, 2, 10):
-        assert combined_pool_metrics(source, decompiled, chunk_size) == expected
+        assert (
+            combined_pool_metrics(
+                source,
+                decompiled,
+                chunk_size,
+                distance_type=distance_type,
+                curvature=0.3,
+            )
+            == expected
+        )
+
+
+@pytest.mark.parametrize(
+    "distance_type,curvature",
+    [
+        ("unknown", 0.1),
+        ("hyperbolic", 0),
+        ("hyperbolic", -0.1),
+        ("hyperbolic", float("nan")),
+        ("hyperbolic", float("inf")),
+    ],
+)
+def test_invalid_scoring_is_rejected(distance_type, curvature):
+    from ifce.eval.checkpoint import combined_pool_metrics, evaluate_checkpoint
+
+    with pytest.raises(ValueError):
+        combined_pool_metrics(
+            torch.eye(2), torch.eye(2), distance_type=distance_type, curvature=curvature
+        )
+    with pytest.raises(ValueError):
+        evaluate_checkpoint(
+            "unused", "unused", distance_type=distance_type, curvature=curvature
+        )
+
+
+def test_overflow_curvature_rejected_before_checkpoint_loading():
+    from ifce.eval.checkpoint import evaluate_checkpoint
+
+    with pytest.raises(ValueError, match="curvature"):
+        evaluate_checkpoint(
+            "unused", "unused", distance_type="hyperbolic", curvature=10000
+        )
 
 
 @pytest.mark.parametrize(
@@ -104,8 +154,9 @@ def checkpoint_and_dataset(tmp_path, request):
     return checkpoint, dataset
 
 
+@pytest.mark.parametrize("distance_type", ["cosine", "hyperbolic"])
 def test_cli_evaluates_real_checkpoint_and_writes_json(
-    checkpoint_and_dataset, tmp_path
+    checkpoint_and_dataset, tmp_path, distance_type
 ):
     from typer.testing import CliRunner
 
@@ -128,6 +179,10 @@ def test_cli_evaluates_real_checkpoint_and_writes_json(
             "1",
             "--rank-batch-size",
             "1",
+            "--distance-type",
+            distance_type,
+            "--curvature",
+            "0.3",
             "--output",
             str(output),
         ],
@@ -139,6 +194,8 @@ def test_cli_evaluates_real_checkpoint_and_writes_json(
     assert report["split"] == "test"
     assert report["max_seq_length"] == 16
     assert report["checkpoint"] == str(checkpoint)
+    assert report["distance_type"] == distance_type
+    assert report["curvature"] == (0.3 if distance_type == "hyperbolic" else None)
     assert report["metrics"]["decompiled_to_source"]["mrr"] == 1.0
     assert report["metrics"]["source_to_decompiled"]["recall_at_1"] == 1.0
     assert "Decompiled->Source" in result.output

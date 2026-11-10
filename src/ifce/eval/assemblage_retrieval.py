@@ -3,6 +3,7 @@
 import logging
 import os
 import pickle
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -540,10 +541,13 @@ def gen_products(metrics_df, out_path, all_ranks, k_for_recalls, model_names):
 
 
 def analyze_sims(
-    model_names: list[str], cosine_parquet_paths: list[str], data_input_dir: str
+    model_names: list[str],
+    cosine_parquet_paths: list[str],
+    data_input_dir: str,
+    out_path=None,
 ):
 
-    out_path = RESULTS_DIR
+    out_path = RESULTS_DIR / "cosine" if out_path is None else Path(out_path)
     os.makedirs(out_path, exist_ok=True)
 
     cpu_count = os.cpu_count()
@@ -753,8 +757,8 @@ def analyze_sims(
 
     # save everything
     try:
-        metrics_df.to_pickle("metrics_df.pkl")
-        with open("all_ranks.pkl", "wb") as file:
+        metrics_df.to_pickle(out_path / "metrics_df.pkl")
+        with open(out_path / "all_ranks.pkl", "wb") as file:
             pickle.dump(all_ranks, file)
     except Exception as e:
         logger.info(e)

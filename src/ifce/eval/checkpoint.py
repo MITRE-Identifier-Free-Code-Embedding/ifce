@@ -15,6 +15,14 @@ import numpy as np
 import torch
 from datasets import DatasetDict, load_from_disk
 
+from ifce.modeling.curvature import validate_curvature
+
+
+def _validate_scoring(distance_type: str, curvature: float) -> None:
+    if distance_type not in ("cosine", "hyperbolic"):
+        raise ValueError(f"Unknown distance_type: {distance_type}")
+    validate_curvature(curvature)
+
 
 def load_eval_dataset(data_dir: str | Path, split: str | None = None):
     """Load a saved Dataset, or select the test/only/explicit DatasetDict split."""
@@ -53,9 +61,18 @@ def load_eval_dataset(data_dir: str | Path, split: str | None = None):
 
 @torch.inference_mode()
 def combined_pool_metrics(
-    source: torch.Tensor, decompiled: torch.Tensor, rank_batch_size: int = 512
+    source: torch.Tensor,
+    decompiled: torch.Tensor,
+    rank_batch_size: int = 512,
+    *,
+    distance_type: str = "cosine",
+    curvature: float = 0.1,
 ) -> dict[str, dict[str, float]]:
     """Score normalized embeddings in query chunks, without a full 2N×2N matrix."""
+    _validate_scoring(distance_type, curvature)
+    if distance_type == "hyperbolic":
+        from ifce.modeling.losses import negative_lorentz_distance
+
     if rank_batch_size < 1:
         raise ValueError("rank_batch_size must be positive.")
     if (
@@ -78,7 +95,12 @@ def combined_pool_metrics(
     ):
         ranks = np.empty(n, dtype=np.int64)
         for start in range(0, n, rank_batch_size):
-            scores = queries[start : start + rank_batch_size] @ pool.T
+            anchors = queries[start : start + rank_batch_size]
+            scores = (
+                anchors @ pool.T
+                if distance_type == "cosine"
+                else negative_lorentz_distance(anchors, pool, curvature)
+            )
             rows = torch.arange(len(scores), device=pool.device)
             indices = rows + start
             target = scores[rows, target_offset + indices].clone()
@@ -104,12 +126,15 @@ def evaluate_checkpoint(
     rank_batch_size: int = 512,
     split: str | None = None,
     trust_remote_code: bool = False,
+    distance_type: str = "cosine",
+    curvature: float = 0.1,
 ) -> dict:
     """Load any compatible local/Hub checkpoint and return metrics plus settings."""
-    from sentence_transformers import SentenceTransformer
-
+    _validate_scoring(distance_type, curvature)
     if min(max_seq_length, batch_size, rank_batch_size) < 1:
         raise ValueError("Sequence length and batch sizes must be positive.")
+    from sentence_transformers import SentenceTransformer
+
     start = perf_counter()
     dataset, selected_split = load_eval_dataset(data_dir, split)
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -131,7 +156,13 @@ def evaluate_checkpoint(
     decompiled = torch.as_tensor(
         model.encode(list(dataset["decompilation"]), **encode_args), device=device
     )
-    metrics = combined_pool_metrics(source, decompiled, rank_batch_size)
+    metrics = combined_pool_metrics(
+        source,
+        decompiled,
+        rank_batch_size,
+        distance_type=distance_type,
+        curvature=curvature,
+    )
     return {
         "checkpoint": checkpoint,
         "data_dir": str(data_dir),
@@ -145,6 +176,8 @@ def evaluate_checkpoint(
         "max_seq_length": max_seq_length,
         "batch_size": batch_size,
         "rank_batch_size": rank_batch_size,
+        "distance_type": distance_type,
+        "curvature": curvature if distance_type == "hyperbolic" else None,
         "metrics": metrics,
         "elapsed_seconds": round(perf_counter() - start, 3),
     }

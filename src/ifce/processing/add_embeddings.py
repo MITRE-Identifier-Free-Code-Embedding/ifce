@@ -184,7 +184,7 @@ def create_embeddings(
     data_directory: str,
     model_config_path: str,
     batch_size: int,
-    out_path: str = str(RESULTS_DIR),
+    out_path: str = str(RESULTS_DIR / "cosine"),
     tsne_per_rep_limit: int = 5000,
     overwrite: bool = False,
 ):

@@ -1,3 +1,7 @@
+evaluation:
+  distance_type: cosine  # cosine or hyperbolic (negative Lorentz distance)
+  curvature: 0.1        # positive c for curvature -c; match hyperbolic training
+
 models:
   [
   BinSeek-Embedding,

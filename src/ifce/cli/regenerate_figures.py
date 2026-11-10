@@ -25,7 +25,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--results_dir",
-        default=str(RESULTS_DIR),
+        default=str(RESULTS_DIR / "cosine"),
         type=str,
         help="Directory holding the pickled intermediate results and where figures are written.",
     )
@@ -59,7 +59,7 @@ def main():
     with open(results_dir / "group_aps_exp2.pkl", "rb") as file:
         group_aps_exp2 = pickle.load(file)
 
-    gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, str(results_dir))
+    gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, results_dir)
 
 
 if __name__ == "__main__":

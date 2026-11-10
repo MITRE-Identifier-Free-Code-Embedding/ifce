@@ -54,6 +54,13 @@ def eval_checkpoint(
             min=1, help="Queries scored at once against the combined candidate pool."
         ),
     ] = 512,
+    distance_type: Annotated[
+        str, typer.Option(help="Retrieval scoring: cosine or hyperbolic.")
+    ] = "cosine",
+    curvature: Annotated[
+        float,
+        typer.Option(help="Positive hyperbolic curvature magnitude; match training."),
+    ] = 0.1,
     split: Annotated[
         str | None,
         typer.Option(help="DatasetDict split. Defaults to test, or the only split."),
@@ -78,6 +85,8 @@ def eval_checkpoint(
             max_seq_length=max_seq_length,
             batch_size=batch_size,
             rank_batch_size=rank_batch_size,
+            distance_type=distance_type,
+            curvature=curvature,
             split=split,
             trust_remote_code=trust_remote_code,
         )
