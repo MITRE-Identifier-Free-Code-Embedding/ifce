@@ -21,6 +21,7 @@ MODULES = [
     "ifce.modeling",
     "ifce.modeling.models",
     "ifce.modeling.train",
+    "ifce.modeling.losses",
     "ifce.processing",
     "ifce.processing.add_embeddings",
     "ifce.processing.find_distances",

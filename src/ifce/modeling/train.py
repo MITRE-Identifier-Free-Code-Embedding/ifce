@@ -8,12 +8,10 @@ from sentence_transformers import (
     SentenceTransformerTrainer,
     SentenceTransformerTrainingArguments,
 )
-from sentence_transformers.losses import (
-    CachedMultipleNegativesRankingLoss,
-)
 from sentence_transformers.training_args import BatchSamplers
 from transformers import AutoTokenizer, set_seed
 
+from ifce.modeling.losses import build_loss
 from ifce.paths import CHECKPOINTS_DIR
 
 
@@ -61,6 +59,19 @@ def arg_parse():
     parser.add_argument("--batch_size", default=64, type=int, help="Batch size")
 
     parser.add_argument(
+        "--loss",
+        choices=("cosine_infonce", "hyperbolic_infonce"),
+        default="cosine_infonce",
+        help="InfoNCE similarity geometry (default: cosine_infonce).",
+    )
+    parser.add_argument("--temperature", default=0.05, type=float)
+    parser.add_argument(
+        "--curvature",
+        default=0.1,
+        type=float,
+        help="Positive curvature magnitude c for the Lorentz manifold of curvature -c.",
+    )
+    parser.add_argument(
         "--max_seq_length",
         default=2048,
         type=int,
@@ -90,6 +101,9 @@ def train(
     grad_accum_steps: int,
     batch_size: int,
     seed: int = 42,
+    loss_name: str = "cosine_infonce",
+    temperature: float = 0.05,
+    curvature: float = 0.1,
     max_seq_length: int = 2048,
     loss_mini_batch_size: int = 16,
 ):
@@ -137,10 +151,13 @@ def train(
 
     eval_batch_size = max(int(batch_size / 16), 1)  # just to be safe
 
-    # misc init. mini_batch_size only chunks the cached-loss embedding computation
-    # (speed/memory); it does not change the gradient or the result.
-    loss = CachedMultipleNegativesRankingLoss(
-        model, mini_batch_size=loss_mini_batch_size
+    # misc init
+    loss = build_loss(
+        model,
+        loss_name=loss_name,
+        temperature=temperature,
+        curvature=curvature,
+        mini_batch_size=loss_mini_batch_size,
     )
 
     run_name = model_id
@@ -194,6 +211,9 @@ def main():
         grad_accum_steps=args.grad_accum_steps,
         batch_size=args.batch_size,
         seed=args.seed,
+        loss_name=args.loss,
+        temperature=args.temperature,
+        curvature=args.curvature,
         max_seq_length=args.max_seq_length,
         loss_mini_batch_size=args.loss_mini_batch_size,
     )

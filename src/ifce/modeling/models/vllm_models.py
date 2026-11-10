@@ -12,6 +12,7 @@ import signal
 import subprocess
 import tempfile
 import time
+from pathlib import Path
 
 import numpy as np
 import requests
@@ -116,11 +117,27 @@ class OnlineQwen3EmbeddingModel(EmbeddingModel):
             api_key="EMPTY", base_url=f"http://localhost:{self.port}/v1", timeout=60.0
         )
 
-        # Probe the server so construction fails fast if it is not reachable.
-        self.client.models.list()
-        # vLLM doesn't expose max_model_len via the OpenAI models API,
-        # so fall back to the value passed in or a safe default
-        self.truncate_length = (max_model_len - 1) if max_model_len else 32767
+        # vLLM extends /v1/models with the actual serving context limit. A
+        # checkpoint may have a smaller limit than the original base model.
+        try:
+            models = self.client.models.list()
+            limits = [
+                limit
+                for model in models.data
+                if isinstance(limit := getattr(model, "max_model_len", None), int)
+                and limit > 0
+            ]
+            if max_model_len is not None and max_model_len > 0:
+                limits.append(max_model_len)
+            if not limits:
+                raise RuntimeError(
+                    "vLLM did not report max_model_len; pass max_model_len "
+                    "explicitly when constructing the embedding model."
+                )
+            self.truncate_length = max(1, min(limits) - 1)
+        except Exception:
+            self._shutdown()
+            raise
 
     def _start_server(self, device, gpu_memory_utilization, max_model_len, **kwargs):
         cmd = [
@@ -269,14 +286,25 @@ class OnlineCustomEmbeddingModel(OnlineQwen3EmbeddingModel):
         port: int = DEFAULT_PORT,
         gpu_memory_utilization: float = 0.90,
         max_model_len: int | None = None,
+        model_path: str | Path | None = None,
         **kwargs,
     ):
-        self.quantization = kwargs["quantization"] if "quantization" in kwargs else None
-        super().__init__(name=name)
+        self.model_path = (
+            Path(model_path) if model_path is not None else CHECKPOINTS_DIR / name
+        )
+        self.quantization = kwargs.pop("quantization", None)
+        super().__init__(
+            name=name,
+            device=device,
+            prompting=prompting,
+            port=port,
+            gpu_memory_utilization=gpu_memory_utilization,
+            max_model_len=max_model_len,
+            **kwargs,
+        )
         self.former_name = "Qwen/Qwen3-Embedding-0.6B"
 
     def _start_server(self, device, gpu_memory_utilization, max_model_len, **kwargs):
-        self.model_path = CHECKPOINTS_DIR / self.name
         cmd = [
             "vllm",
             "serve",

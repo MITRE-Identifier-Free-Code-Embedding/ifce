@@ -17,9 +17,13 @@ from scipy import stats
 from tqdm import tqdm
 
 from ifce.config import yaml_safe_load
+from ifce.device import get_device
 from ifce.modeling.models import build_model
-from ifce.paths import RESULTS_DIR
-from ifce.processing.find_distances import cosine_matrix_calculation
+from ifce.processing.find_distances import (
+    evaluation_results_dir,
+    evaluation_settings,
+    similarity_matrix_calculation,
+)
 from ifce.visualization.signsrch_plots import (
     plot_group_map_bars,
     plot_map_histograms,
@@ -567,10 +571,19 @@ def gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path):
 
 
 def run_signsrch_exps(
-    model_config_path: str, signsrch_path: str, batch_size: int = 512
+    model_config_path: str,
+    signsrch_path: str,
+    batch_size: int = 512,
+    distance_type: str | None = None,
+    curvature: float | None = None,
 ):
 
-    out_path = RESULTS_DIR
+    yaml_config = yaml_safe_load(model_config_path)
+    distance_type, curvature = evaluation_settings(
+        yaml_config, distance_type, curvature
+    )
+    out_path = evaluation_results_dir(distance_type, curvature)
+    out_path.mkdir(parents=True, exist_ok=True)
 
     sigs = parse_signsrch(signsrch_path)
 
@@ -589,8 +602,7 @@ def run_signsrch_exps(
     AP_dict_exp1, AP_dict_exp2 = {}, {}
     group_aps_exp2 = {}
 
-    device = "cuda"
-    yaml_config = yaml_safe_load(model_config_path)
+    device = get_device()
     cpu_count = os.cpu_count()
     embedding_dictionary_keys = set(sigs.keys())
     for _, data in sigs.items():
@@ -607,11 +619,15 @@ def run_signsrch_exps(
         )
 
         embeddings = np.array(list(embedding_dictionary.values()))
-        cosine_matrix = cosine_matrix_calculation(
-            full_embeddings=torch.Tensor(embeddings), device=device, split_size=4096
+        score_matrix = similarity_matrix_calculation(
+            full_embeddings=torch.Tensor(embeddings),
+            device=device,
+            split_size=4096,
+            distance_type=distance_type,
+            curvature=curvature,
         )
         df = pd.DataFrame(
-            cosine_matrix,
+            score_matrix,
             index=embedding_dictionary.keys(),
             columns=embedding_dictionary.keys(),
         )
@@ -672,9 +688,9 @@ def run_signsrch_exps(
         # Flat list of per-group MAPs — one value per group, equal weight
         AP_dict_exp2[model_name] = group_aps_to_MAPs(group_aps_exp2[model_name])
 
-    with open("group_aps_exp2.pkl", "wb") as file:
+    with open(out_path / "group_aps_exp2.pkl", "wb") as file:
         pickle.dump(group_aps_exp2, file)
-    with open("AP_dict_exps.pkl", "wb") as file:
+    with open(out_path / "AP_dict_exps.pkl", "wb") as file:
         pickle.dump([AP_dict_exp1, AP_dict_exp2], file)
 
     gen_signsrch_products(AP_dict_exp1, AP_dict_exp2, group_aps_exp2, out_path)

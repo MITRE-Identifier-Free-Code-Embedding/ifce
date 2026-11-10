@@ -82,6 +82,24 @@ resulting checkpoint is written to `outputs/checkpoints/<--model_id>` (default
 `BUSTA-IFCE-Qwen3-0.6B`), where it is auto-discovered during evaluation. The
 `--model_id` must match the id used in `config/experiment_config.yaml`.
 
+The default loss is cached cosine InfoNCE (`--loss cosine_infonce`) at
+`--temperature 0.05`, preserving the baseline. To use the Lorentz hyperbolic
+InfoNCE objective:
+
+```bash
+uv run accelerate launch -m ifce.modeling.train \
+    --data_dir_path $TRAIN_ASSEMBLAGE_PATH \
+    --model_id BUSTA-IFCE-Qwen3-0.6B-Hyperbolic \
+    --loss hyperbolic_infonce --temperature 0.05 --curvature 0.1
+```
+
+This L2-normalizes pooled embeddings, applies the exponential map at the Lorentz
+origin, and uses negative geodesic distance divided by temperature as the
+InfoNCE logits. Curvature is fixed at `-c`, where `--curvature` supplies the
+positive magnitude `c`. Geometry calculations run in FP32 even under mixed
+precision. Temperature must be finite and positive. Curvature must be finite
+and between `1e-30` and `100` for stable FP32 scoring.
+
 Two flags control training speed. `--max_seq_length` (default 2048) caps the
 context; leaving it at the base model's native length (32768 for
 Qwen3-Embedding-0.6B) makes iterations slow and OOM-prone on long functions.
@@ -91,10 +109,10 @@ faster or lower it if you hit OOM.
 
 ## Evaluation
 
-### Evaluate a checkpoint (rebuttal retrieval protocol)
+### Evaluate a checkpoint (recommended)
 
-From a checkout of `main`, install the core dependencies and evaluate any local
-SentenceTransformer checkpoint or Hugging Face model ID:
+Install the core dependencies and evaluate any local SentenceTransformer
+checkpoint or Hugging Face model ID:
 
 ```bash
 uv sync
@@ -133,15 +151,32 @@ CUDA_VISIBLE_DEVICES=0 uv run ifce eval /path/to/checkpoint \
     --max-seq-length 2048 --batch-size 32 --output results/new-loss.json
 ```
 
+Cosine scoring is the default. For a checkpoint trained with hyperbolic loss,
+select Lorentz scoring and match the curvature magnitude used in training:
+
+```bash
+uv run ifce eval /path/to/checkpoint \
+    --distance-type hyperbolic --curvature 0.1 --output results/hyperbolic.json
+```
+
+Hyperbolic scoring uses the training objective's normalized Lorentz mapping and
+FP32 negative geodesic distance. Both scoring modes rank larger scores first and
+use the same combined candidate pool, self-match exclusion, and tie policy.
+
 JSON output records both directions' metrics, dataset path/split, checkpoint,
-token limit, batch sizes, device, pool size, tie policy, and elapsed time. Model
-registration, vLLM, Signsrch files, and the `eval`/`serve` extras are not required.
+token limit, batch sizes, scoring mode, curvature (for hyperbolic scoring), device,
+pool size, tie policy, and elapsed time. Model registration, vLLM, Signsrch files,
+and the `eval`/`serve` extras are not required.
 Only enable `--trust-remote-code` for checkpoints whose code you trust.
 Use `uv run ifce eval --help` for all options; `uv run python -m ifce eval` is
 equivalent. Existing `ifce-train`, `ifce-experiment`, and `ifce-time` commands remain
 available.
 
-### Full paper benchmark suite
+### Advanced: full paper benchmark suite
+
+Use `ifce-experiment` when you need the full Assemblage and Signsrch benchmarks,
+model comparisons, figures, and LaTeX tables. This requires a model YAML
+configuration and the Signsrch signature database described above:
 
 ```bash
 uv run ifce-experiment \
@@ -150,10 +185,35 @@ uv run ifce-experiment \
     --signsrch_path data/signsrch.sig
 ```
 
-Evaluation results (figures, LaTeX tables) populate `outputs/results/`;
-intermediate cosine-similarity matrices and embeddings are stored under
-`data/` and `outputs/distances/`. Figures can be re-rendered from saved pickles
-without rerunning the experiment via `uv run python -m ifce.cli.regenerate_figures`.
+Both Assemblage and Signsrch support cosine (default) and hyperbolic retrieval.
+Add `--distance_type hyperbolic --curvature 0.1` to `ifce-experiment` for
+Lorentz scoring, matching the curvature magnitude used in training. Alternatively,
+configure defaults in the experiment YAML:
+
+```yaml
+evaluation:
+  distance_type: hyperbolic
+  curvature: 0.1
+```
+
+CLI options override YAML. Hyperbolic scoring uses the same normalized Lorentz
+mapping and FP32 negative geodesic distance as training. Both metrics rank larger
+scores first.
+
+Figures, LaTeX tables, and intermediate pickles are saved in `outputs/results/cosine/`
+for cosine evaluation and in `outputs/results/hyperbolic_c0.1/` for hyperbolic
+evaluation, with the subdirectory reflecting the selected curvature. Cached score
+matrices follow the same layout under `outputs/distances/`: for example,
+`outputs/distances/cosine/<model>.parquet` or
+`outputs/distances/hyperbolic_c0.1/<model>.parquet`. Embeddings remain in the
+`<dataset_path>_embedded` dataset and can be reused across metrics. New runs use
+these directories; older caches in `data/` are not reused automatically.
+
+To re-render figures from saved pickles without rerunning evaluation, run
+`uv run python -m ifce.cli.regenerate_figures`, which defaults to
+`outputs/results/cosine/`. For hyperbolic results, add
+`--results_dir outputs/results/hyperbolic_c0.1`, using the directory for your
+selected curvature.
 
 A generated results table looks similar to:
 
@@ -177,7 +237,7 @@ A generated results table looks similar to:
 
 ```
 src/ifce/          importable package
-  cli/             runnable entry points (ifce-experiment, ifce-train, ifce-time, regenerate_figures)
+  cli/             runnable entry points (ifce eval, ifce-experiment, ifce-train, ifce-time, regenerate_figures)
   modeling/        embedding model wrappers + training
   processing/      embedding generation and distance-matrix computation
   eval/            Assemblage retrieval, Signsrch benchmark, OOD analyses

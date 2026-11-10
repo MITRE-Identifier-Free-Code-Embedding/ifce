@@ -2,6 +2,10 @@
 # Copyright 2026 The MITRE Corporation
 """Model registry: name -> class / size maps, discovery, and a build factory."""
 
+from functools import partial
+from hashlib import sha256
+from pathlib import Path
+
 from ifce.paths import CHECKPOINTS_DIR
 
 from .base import EmbeddingModel
@@ -74,6 +78,23 @@ def discover_custom_models() -> None:
                 "MODEL_CLASS_MAP to handle model types other than Qwen3-Embedding."
             )
     assert set(MODEL_CLASS_MAP.keys()) == set(MODEL_SIZE_MAP.keys())
+
+
+def register_checkpoint(checkpoint_path: str) -> str:
+    """Register an explicit Qwen3-0.6B checkpoint with a path-specific cache key."""
+    path = Path(checkpoint_path).expanduser().resolve()
+    if not (path / "config.json").is_file():
+        raise ValueError(
+            f"Checkpoint directory must contain config.json: {path}. "
+            "Point to the saved checkpoint-* directory, not its parent."
+        )
+    digest = sha256(str(path).encode()).hexdigest()[:12]
+    # The build factory treats names containing "quant" or "fp8" as a request
+    # to quantize. Keep arbitrary path components out of this cache key.
+    name = f"checkpoint-{digest}"
+    MODEL_CLASS_MAP[name] = partial(OnlineCustomEmbeddingModel, model_path=path)
+    MODEL_SIZE_MAP[name] = 0.6
+    return name
 
 
 def build_model(name: str, device: str = "cpu", **kwargs) -> EmbeddingModel:
